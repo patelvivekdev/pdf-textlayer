@@ -1,0 +1,68 @@
+[project]
+name = "pdf-textlayer"
+version = "0.1.0"
+description = "Add an invisible, searchable text layer to a PDF from OCR JSON (PyMuPDF)."
+readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [
+    { name = "Vivek Patel", email = "me@patelvivek.dev" }
+]
+requires-python = ">=3.11"
+keywords = ["pdf", "ocr", "searchable", "textlayer", "pymupdf", "liteparse", "accessibility"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Scientific/Engineering :: Image Processing",
+    "Topic :: Text Processing",
+]
+dependencies = [
+    "pymupdf>=1.27.2.3",
+]
+
+[project.urls]
+Homepage = "https://github.com/patelvivekdev/pdf-textlayer"
+Repository = "https://github.com/patelvivekdev/pdf-textlayer"
+Issues = "https://github.com/patelvivekdev/pdf-textlayer/issues"
+
+[project.scripts]
+pdf-textlayer = "pdf_textlayer:main"
+
+[build-system]
+requires = ["uv_build>=0.9.18,<0.10.0"]
+build-backend = "uv_build"
+
+[dependency-groups]
+dev = [
+    "pytest>=9.0.3",
+    "ruff>=0.9.0",
+]
+
+[tool.ruff]
+target-version = "py311"
+line-length = 88
+src = ["src"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+
+[tool.ruff.lint]
+select = [
+    "E",      # pycodestyle errors
+    "W",      # pycodestyle warnings
+    "F",      # Pyflakes
+    "I",      # isort
+    "UP",     # pyupgrade
+    "B",      # flake8-bugbear
+    "SIM",    # flake8-simplify
+]
+ignore = []
+
+[tool.ruff.lint.isort]
+known-first-party = ["pdf_textlayer"]
