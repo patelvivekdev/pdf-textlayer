@@ -1,0 +1,178 @@
+{
+  "total_pages": 1,
+  "pages": [
+    {
+      "page": 1,
+      "width": 612,
+      "height": 792,
+      "text": "ACME SUPPLY\nInvoice 1042\nBilled to Ada Lovelace\nAmount due 1280.00\nPayable within 30 days",
+      "text_items": [
+        {
+          "text": "ACME",
+          "x": 72.0,
+          "y": 72.35,
+          "width": 63.56,
+          "height": 30.23,
+          "font_name": "OCR",
+          "font_size": 22,
+          "confidence": 0.98,
+          "rotation": 0.0
+        },
+        {
+          "text": "SUPPLY",
+          "x": 141.67,
+          "y": 72.35,
+          "width": 86.81,
+          "height": 30.23,
+          "font_name": "OCR",
+          "font_size": 22,
+          "confidence": 0.98,
+          "rotation": 0.0
+        },
+        {
+          "text": "Invoice",
+          "x": 72.0,
+          "y": 130.8,
+          "width": 50.69,
+          "height": 21.98,
+          "font_name": "OCR",
+          "font_size": 16,
+          "confidence": 0.98,
+          "rotation": 0.0
+        },
+        {
+          "text": "1042",
+          "x": 127.14,
+          "y": 130.8,
+          "width": 35.58,
+          "height": 21.98,
+          "font_name": "OCR",
+          "font_size": 16,
+          "confidence": 0.98,
+          "rotation": 0.0
+        },
+        {
+          "text": "Billed",
+          "x": 72.0,
+          "y": 180.95,
+          "width": 34.23,
+          "height": 19.24,
+          "font_name": "OCR",
+          "font_size": 14,
+          "confidence": 0.98,
+          "rotation": 0.0
+        },
+        {
+          "text": "to",
+          "x": 110.12,
+          "y": 180.95,
+          "width": 11.68,
+          "height": 19.24,
+          "font_name": "OCR",
+          "font_size": 14,
+          "confidence": 0.98,
+          "rotation": 0.0
+        },
+        {
+          "text": "Ada",
+          "x": 125.69,
+          "y": 180.95,
+          "width": 24.91,
+          "height": 19.24,
+          "font_name": "OCR",
+          "font_size": 14,
+          "confidence": 0.98,
+          "rotation": 0.0
+        },
+        {
+          "text": "Lovelace",
+          "x": 154.49,
+          "y": 180.95,
+          "width": 56.03,
+          "height": 19.24,
+          "font_name": "OCR",
+          "font_size": 14,
+          "confidence": 0.98,
+          "rotation": 0.0
+        },
+        {
+          "text": "Amount",
+          "x": 72.0,
+          "y": 210.95,
+          "width": 48.24,
+          "height": 19.24,
+          "font_name": "OCR",
+          "font_size": 14,
+          "confidence": 0.98,
+          "rotation": 0.0
+        },
+        {
+          "text": "due",
+          "x": 124.14,
+          "y": 210.95,
+          "width": 23.35,
+          "height": 19.24,
+          "font_name": "OCR",
+          "font_size": 14,
+          "confidence": 0.98,
+          "rotation": 0.0
+        },
+        {
+          "text": "1280.00",
+          "x": 151.38,
+          "y": 210.95,
+          "width": 50.6,
+          "height": 19.24,
+          "font_name": "OCR",
+          "font_size": 14,
+          "confidence": 0.93,
+          "rotation": 0.0
+        },
+        {
+          "text": "Payable",
+          "x": 72.0,
+          "y": 254.95,
+          "width": 50.58,
+          "height": 19.24,
+          "font_name": "OCR",
+          "font_size": 14,
+          "confidence": 0.98,
+          "rotation": 0.0
+        },
+        {
+          "text": "within",
+          "x": 126.47,
+          "y": 254.95,
+          "width": 35.78,
+          "height": 19.24,
+          "font_name": "OCR",
+          "font_size": 14,
+          "confidence": 0.98,
+          "rotation": 0.0
+        },
+        {
+          "text": "30",
+          "x": 166.15,
+          "y": 254.95,
+          "width": 15.57,
+          "height": 19.24,
+          "font_name": "OCR",
+          "font_size": 14,
+          "confidence": 0.98,
+          "rotation": 0.0
+        },
+        {
+          "text": "days",
+          "x": 185.61,
+          "y": 254.95,
+          "width": 29.57,
+          "height": 19.24,
+          "font_name": "OCR",
+          "font_size": 14,
+          "confidence": 0.98,
+          "rotation": 0.0
+        }
+      ]
+    }
+  ]
+}
