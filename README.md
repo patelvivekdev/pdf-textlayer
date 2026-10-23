@@ -27,8 +27,8 @@ This installs the `pdf-textlayer` CLI and the `pdf_textlayer` Python package.
 ## CLI
 
 ```bash
-# 1. Produce OCR JSON for your PDF (example: liteparse)
-liteparse input.pdf --format json -o parsed.json
+# 1. Produce OCR JSON. --extract-text-metadata adds per-item rotation.
+lit parse input.pdf --format json --extract-text-metadata -o parsed.json
 
 # 2. Build the searchable PDF
 pdf-textlayer input.pdf parsed.json output.pdf
@@ -76,7 +76,7 @@ pages = [
 write_textlayer("input.pdf", pages, "output.pdf")
 ```
 
-Coordinates use PyMuPDF's convention: origin at the **top-left** of the page, `x` right, `y` down, in PDF user-space points. `(x, y)` is the top-left corner of the box.
+Coordinates use PyMuPDF's convention: origin at the **top-left** of the displayed page, `x` right, `y` down, in PDF user-space points. `(x, y)` is the top-left corner of the box. `TextBox.rotation` is degrees counter-clockwise (`0`, `90`, `180`, `270`); other values snap to a right angle. Boxes are in the upright viewport LiteParse emits, including on pages with a `/Rotate` entry.
 
 ## How mixed pages are handled
 
@@ -85,7 +85,9 @@ For each page in the input PDF, the adapter decides whether the page has OCR con
 1. If the adapter yields a `ParsedPage` with non-empty `boxes` → the page receives an invisible overlay (subject to `min_confidence`).
 2. If the adapter omits the page, or yields it with no boxes → the page is left exactly as-is.
 
-For the bundled liteparse adapter, "has OCR content" means the page contains at least one `textItems` entry with `fontName == "OCR"`. Native-text items keep the real font name and are skipped, so the original PDF text is never duplicated.
+For the bundled liteparse adapter, "has OCR content" means the page contains at least one `text_items` entry with `font_name == "OCR"`. Native-text items keep the real font name and are skipped.
+
+An OCR box that covers at least half of an existing native word (or half of itself, whichever area is smaller) is skipped too. That keeps a mixed page — native body text plus a scanned exhibit — from indexing the native words twice. A FreeText annotation or form field counts as native text.
 
 ## Adapters
 
@@ -111,7 +113,7 @@ Bundled adapters:
 
 | Name | Source | Notes |
 |------|--------|-------|
-| `liteparse` | [liteparse](https://github.com/run-llama/liteparse) `--format json` | Items with `fontName == "OCR"` per the [OCR API spec](https://github.com/run-llama/liteparse/blob/main/OCR_API_SPEC.md). |
+| `liteparse` | [liteparse](https://github.com/run-llama/liteparse) `lit parse --format json` | `pages[].text_items[]` with `font_name == "OCR"`. Reads `rotation` when present (`--extract-text-metadata`). `textItems` / `fontName` are still accepted. |
 
 PRs adding more adapters (Azure DI, Textract, hOCR, …) are welcome.
 
@@ -128,13 +130,15 @@ pdf-textlayer in.pdf parsed.json out.pdf --font china-s
 
 ## How the overlay is drawn
 
-For each box, the font is scaled so the rendered text width matches the box width. The insertion point is the glyph baseline, placed at `(x, y + height)`. Text is written with PDF render mode 3 — present in the content stream, never painted — so search, copy/paste, and assistive tech work, but the visible page is unchanged.
+For each box, the font is scaled so the rendered text width matches the box along the text direction (the box width when the text is horizontal, the box height when it is vertical). The insertion point is the glyph baseline at the left of the run. Horizontal text sits on `(x, y + height)`. Text is written with PDF render mode 3 — present in the content stream, never painted — so search, copy/paste, and assistive tech work, but the visible page is unchanged.
+
+Every box on a page is queued into one content stream and the overlay font is embedded once on that page.
 
 ## Limitations
 
-- **Rotated text is drawn upright.** OCR sources that don't include rotation metadata can't be rendered rotated; in practice most pipelines de-rotate before emitting boxes.
+- **Rotation comes from the JSON.** `lit parse --format json --extract-text-metadata` includes `rotation` on each item. Without that flag the field is omitted and the run is drawn horizontally inside the box. Angles snap to `0`, `90`, `180`, or `270`.
 - **Invisible text uses PDF render mode 3.** All modern viewers and search indexers handle this correctly; very old tooling may not extract it.
-- **No de-duplication across overlay and native text.** If you point the tool at native-text pages but the adapter treats them as OCR, you'll get duplicated search hits. The bundled `liteparse` adapter avoids this by filtering on `fontName`.
+- **Overlap dedup is geometric.** Two words that sit side by side and barely intersect are both kept. A box that covers half or more of a native word is treated as that word and skipped.
 
 ## Contributing
 

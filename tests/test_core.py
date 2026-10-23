@@ -276,6 +276,70 @@ def test_liteparse_adapter_skips_non_ocr_items() -> None:
     assert [b.text for b in pages[0].boxes] == ["ocr"]
 
 
+def test_liteparse_adapter_reads_current_json_schema() -> None:
+    """liteparse 2.17 ``--format json`` uses snake_case and may include rotation."""
+    data = {
+        "total_pages": 1,
+        "pages": [
+            {
+                "page": 1,
+                "width": 612,
+                "height": 792,
+                "text": "Hello",
+                "text_items": [
+                    {
+                        "text": "native",
+                        "x": 1,
+                        "y": 2,
+                        "width": 3,
+                        "height": 4,
+                        "font_name": "Helvetica",
+                        "font_size": 12,
+                        "confidence": 1,
+                    },
+                    {
+                        "text": "ocr",
+                        "x": 5,
+                        "y": 6,
+                        "width": 7,
+                        "height": 8,
+                        "font_name": "OCR",
+                        "font_size": 8,
+                        "confidence": 0,
+                        "rotation": 90,
+                    },
+                ],
+            }
+        ],
+    }
+    pages = list(LiteparseAdapter().parse(data))
+    assert len(pages) == 1
+    assert pages[0].boxes == [TextBox("ocr", 5, 6, 7, 8, confidence=0.0, rotation=90.0)]
+
+
+def test_liteparse_adapter_defaults_missing_rotation() -> None:
+    data = {
+        "pages": [
+            {
+                "page": 1,
+                "text_items": [
+                    {
+                        "text": "ocr",
+                        "x": 0,
+                        "y": 0,
+                        "width": 10,
+                        "height": 10,
+                        "font_name": "OCR",
+                    }
+                ],
+            }
+        ]
+    }
+    box = list(LiteparseAdapter().parse(data))[0].boxes[0]
+    assert box.rotation == 0.0
+    assert box.confidence == 1.0
+
+
 def test_liteparse_adapter_skips_pages_with_no_ocr() -> None:
     data = {
         "pages": [

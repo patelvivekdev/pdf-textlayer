@@ -8,10 +8,10 @@ method. New adapters can be plugged in at runtime with
 Currently bundled:
 
 * ``"liteparse"`` — :class:`LiteparseAdapter`, for JSON produced by
-  `liteparse <https://github.com/run-llama/liteparse>`_'s ``--format json``
-  output. liteparse tags OCR-derived text items with
-  ``fontName == "OCR"``; native-text items keep the real font name and
-  are skipped here so the original PDF text stays untouched.
+  `liteparse <https://github.com/run-llama/liteparse>`_ ``--format json``
+  (the ``lit parse`` CLI). OCR items are tagged ``font_name == "OCR"``.
+  Native-text items keep the real font name and are skipped so the
+  original PDF text stays untouched.
 """
 
 from __future__ import annotations
@@ -35,69 +35,131 @@ class Adapter(Protocol):
     def parse(self, data: Any) -> Iterable[ParsedPage]: ...
 
 
+def _first_present(item: dict[str, Any], *keys: str) -> Any:
+    """First present, non-null value among ``keys``."""
+    for key in keys:
+        if key in item and item[key] is not None:
+            return item[key]
+
+    return None
+
+
 class LiteparseAdapter:
     """Adapter for `liteparse <https://github.com/run-llama/liteparse>`_ JSON.
 
-    Expected shape (simplified)::
+    Current ``--format json`` shape (liteparse 2.17)::
 
         {
+          "total_pages": 1,
           "pages": [
             {
               "page": 1,
-              "textItems": [
+              "width": 612,
+              "height": 792,
+              "text": "Hello",
+              "text_items": [
                 {
                   "text": "Hello",
-                  "x": 10, "y": 20,
-                  "width": 60, "height": 14,
-                  "fontName": "OCR",
-                  "confidence": 0.95
-                },
-                ...
+                  "x": 72.0,
+                  "y": 100.0,
+                  "width": 40.0,
+                  "height": 12.0,
+                  "font_name": "OCR",
+                  "font_size": 12.0,
+                  "confidence": 0.98,
+                  "rotation": 0.0
+                }
               ]
-            },
-            ...
+            }
           ]
         }
 
-    Only items with ``fontName == "OCR"`` are emitted — native-text items
-    are left to the original PDF.
+    ``rotation`` is emitted only when the parse used
+    ``--extract-text-metadata``. Missing ``rotation`` means horizontal text.
+
+    ``textItems`` / ``fontName`` are still accepted so JSON written against
+    the 0.1 field names keeps working.
+
+    Only items with ``font_name == "OCR"`` are emitted — native-text items
+    are left to the original PDF. Extra keys (font metrics, colors, blocks,
+    annotations) are ignored.
     """
 
     OCR_FONT_MARKER = "OCR"
 
     def parse(self, data: dict[str, Any]) -> Iterable[ParsedPage]:
-        for page in data.get("pages", []):
-            page_no = page.get("page")
-            if not isinstance(page_no, int):
+        for page in data.get("pages") or []:
+            if not isinstance(page, dict):
                 continue
-            boxes = list(self._page_boxes(page))
-            if boxes:
-                yield ParsedPage(page_number=page_no, boxes=boxes)
 
-    def _page_boxes(self, page: dict[str, Any]) -> Iterable[TextBox]:
-        for item in page.get("textItems", []):
-            if item.get("fontName") != self.OCR_FONT_MARKER:
+            page_number = page.get("page")
+
+            if not isinstance(page_number, int):
                 continue
-            text = (item.get("text") or "").strip()
-            if not text:
+
+            boxes = self._ocr_boxes(page)
+
+            if boxes:
+                yield ParsedPage(page_number=page_number, boxes=boxes)
+
+    def _text_items(self, page: dict[str, Any]) -> list[Any]:
+        if "text_items" in page:
+            items = page.get("text_items")
+        else:
+            items = page.get("textItems")
+
+        if not isinstance(items, list):
+            return []
+
+        return items
+
+    def _ocr_boxes(self, page: dict[str, Any]) -> list[TextBox]:
+        boxes: list[TextBox] = []
+
+        for text_item in self._text_items(page):
+            if not isinstance(text_item, dict):
                 continue
-            try:
-                width = float(item.get("width") or 0)
-                height = float(item.get("height") or 0)
-                x = float(item["x"])
-                y = float(item["y"])
-            except (KeyError, TypeError, ValueError):
-                continue
-            if width <= 0 or height <= 0:
-                continue
-            yield TextBox(
-                text=text,
-                x=x,
-                y=y,
-                width=width,
-                height=height,
-                confidence=float(item.get("confidence") or 1.0),
-            )
+
+            box = self._ocr_box_from_item(text_item)
+            if box is not None:
+                boxes.append(box)
+
+        return boxes
+
+    def _ocr_box_from_item(self, text_item: dict[str, Any]) -> TextBox | None:
+        """One drawable OCR box, or None when the item should be skipped."""
+        font_name = _first_present(text_item, "font_name", "fontName")
+        if font_name != self.OCR_FONT_MARKER:
+            return None
+
+        text = (text_item.get("text") or "").strip()
+        if not text:
+            return None
+
+        try:
+            width = float(text_item.get("width") or 0)
+            height = float(text_item.get("height") or 0)
+            x = float(text_item["x"])
+            y = float(text_item["y"])
+            confidence_value = _first_present(text_item, "confidence")
+            confidence = 1.0 if confidence_value is None else float(confidence_value)
+            rotation_value = _first_present(text_item, "rotation")
+            rotation = 0.0 if rotation_value is None else float(rotation_value)
+        except (KeyError, TypeError, ValueError):
+            return None
+
+        if width <= 0 or height <= 0:
+            return None
+
+        return TextBox(
+            text=text,
+            x=x,
+            y=y,
+            width=width,
+            height=height,
+            confidence=confidence,
+            rotation=rotation,
+        )
 
 
 _REGISTRY: dict[str, Adapter] = {

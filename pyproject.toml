@@ -1,6 +1,6 @@
 [project]
 name = "pdf-textlayer"
-version = "0.1.0"
+version = "0.2.0"
 description = "Add an invisible, searchable text layer to a PDF from OCR JSON (PyMuPDF)."
 readme = "README.md"
 license = "MIT"
