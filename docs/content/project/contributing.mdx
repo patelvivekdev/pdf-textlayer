@@ -64,7 +64,13 @@ npm run dev      # http://localhost:4321
 
 ## Releases
 
-Releases are manual GitHub Actions workflows. Each checks that the version you enter matches the package before building anything, and has a dry-run option.
+The crate, the Python package, and the Node.js package share one version, released by [release-please](https://github.com/googleapis/release-please):
+
+1. Write commit messages in the [Conventional Commits](https://www.conventionalcommits.org) format. `feat:` bumps the minor version, `fix:` the patch version, and `feat!:` or a `BREAKING CHANGE:` footer the minor version while the project is below 1.0. `chore:`, `ci:`, `docs:`, `refactor:`, and `test:` do not start a release.
+2. On every push to `main`, `release-please.yml` opens or updates a release PR titled `chore: release X.Y.Z`. It bumps the version in `Cargo.toml`, `Cargo.lock`, `packages/python/pyproject.toml`, `packages/python/uv.lock`, `packages/node/package.json`, and `packages/node/package-lock.json`, and adds the release notes to `CHANGELOG.md`.
+3. Merging the release PR tags `vX.Y.Z`, creates the GitHub release, and starts the three release workflows on that tag. Approve each publish job in GitHub, then the staged npm versions on npmjs.com.
+
+Each release workflow checks that its version matches the package before building anything. To rerun one, or to try one with the dry-run option, start it from the Actions tab.
 
 | Workflow | Publishes |
 |---|---|
@@ -72,9 +78,7 @@ Releases are manual GitHub Actions workflows. Each checks that the version you e
 | `release-python.yml` | abi3 wheels for every platform and an sdist to PyPI, with trusted publishing (no PyPI token). |
 | `release-node.yml` | One npm package per platform holding its `.node` file, plus the main package, which lists them as optional dependencies. They are staged with trusted publishing (no npm token) and go live only after a maintainer approves them with 2FA on npmjs.com. |
 
-Versions must match across `Cargo.toml`, `packages/python/pyproject.toml`, and `packages/node/package.json`.
-
-Publishing jobs run in the GitHub environments `npm`, `pypi`, and `crates-io`, which need a maintainer's approval and deploy only from `main`. Dry runs skip them. npm and PyPI use trusted publishing, so neither stores a token; `scripts/setup-npm-trust.sh` sets up the npm side once. crates.io reads `CARGO_REGISTRY_TOKEN`, a secret of the `crates-io` environment.
+Publishing jobs run in the GitHub environments `npm`, `pypi`, and `crates-io`, which need a maintainer's approval and deploy only from `main` or a `v*` tag. Dry runs skip them. npm and PyPI use trusted publishing, so neither stores a token; `scripts/setup-npm-trust.sh` sets up the npm side once. crates.io reads `CARGO_REGISTRY_TOKEN`, a secret of the `crates-io` environment. release-please acts as a GitHub App, so CI runs on its PRs; the workflow reads the app's client ID from the repository variable `RELEASE_APP_CLIENT_ID` and its private key from the secret `RELEASE_APP_PRIVATE_KEY`.
 
 ## Docs
 

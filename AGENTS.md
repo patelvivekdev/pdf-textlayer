@@ -28,4 +28,4 @@ make test   # cargo test, pytest (packages/python), node --test (packages/node)
 make docs   # blume validate + build (docs)
 ```
 
-Versions must match across `Cargo.toml` (workspace), `packages/python/pyproject.toml`, and `packages/node/package.json`. `release-node.yml` adds the per-platform `optionalDependencies` at publish time.
+Use Conventional Commit messages (`feat:`, `fix:`, `docs:`, `ci:`, ...): release-please builds the changelog and the next version from them. Do not bump versions by hand; release-please updates every file listed in `release-please-config.json` in its release PR. `release-node.yml` adds the per-platform `optionalDependencies` at publish time.

@@ -86,16 +86,19 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v7
       - uses: actions/download-artifact@v8
         with:
           pattern: cli-*
           path: dist
           merge-multiple: true
-      - name: Tag and release
+      - name: Attach the CLI binaries to the GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TAG: v${{ inputs.version }}
         run: |
-          git tag "v${{ inputs.version }}"
-          git push origin "v${{ inputs.version }}"
-          gh release create "v${{ inputs.version }}" --title "v${{ inputs.version }}" --generate-notes dist/*.tar.gz
+          # release-please creates the release; a manual run creates it here.
+          gh release view "$TAG" >/dev/null 2>&1 \
+            || gh release create "$TAG" --target "$GITHUB_SHA" --title "$TAG" --generate-notes \
+            || gh release view "$TAG" >/dev/null
+          gh release upload "$TAG" dist/*.tar.gz --clobber

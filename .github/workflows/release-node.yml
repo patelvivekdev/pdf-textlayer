@@ -201,17 +201,3 @@ jobs:
           done
           echo "Approve the staged versions at https://www.npmjs.com/settings/~/packages (Staged Packages)." >> "$GITHUB_STEP_SUMMARY"
 
-  release:
-    needs: publish
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-    steps:
-      - uses: actions/checkout@v7
-      - name: Tag and release
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          git tag "node-v${{ inputs.version }}"
-          git push origin "node-v${{ inputs.version }}"
-          gh release create "node-v${{ inputs.version }}" --title "Node.js v${{ inputs.version }}" --generate-notes
