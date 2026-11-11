@@ -1,0 +1,33 @@
+[package]
+name = "pdf-textlayer"
+description = "Add an invisible, searchable text layer to a PDF from OCR boxes."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+readme = "README.md"
+keywords = ["pdf", "ocr", "searchable", "textlayer"]
+categories = ["text-processing", "command-line-utilities"]
+
+[lib]
+name = "pdf_textlayer"
+
+[[bin]]
+name = "pdf-textlayer"
+path = "src/main.rs"
+required-features = ["cli"]
+
+[features]
+default = ["cli"]
+# The `pdf-textlayer` command line and `cli::run`, shared by the binary and the
+# Python and Node.js packages.
+cli = ["dep:clap"]
+
+[dependencies]
+clap = { version = "4.5", features = ["derive"], optional = true }
+flate2 = "1.1.11"
+lopdf = { version = "0.47", default-features = false, features = ["rayon"] }
+serde_json = "1.0.154"
+thiserror = "2"
+unicode-width = "0.2"

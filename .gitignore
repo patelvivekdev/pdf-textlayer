@@ -55,3 +55,17 @@ Thumbs.db
 
 # Jupyter
 .ipynb_checkpoints/
+
+# Rust
+target/
+
+# Node.js
+node_modules/
+*.node
+
+# Example output
+examples/searchable.pdf
+
+# Benchmark data and worktrees
+benchmarks/data/
+benchmarks/out/
