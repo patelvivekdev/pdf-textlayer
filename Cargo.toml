@@ -3,6 +3,7 @@ resolver = "2"
 members = [
     "crates/pdf-textlayer",
     "crates/pdf-textlayer-python",
+    "crates/pdf-textlayer-napi",
 ]
 
 [workspace.package]

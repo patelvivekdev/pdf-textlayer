@@ -1,0 +1,74 @@
+{
+  "name": "pdf-textlayer",
+  "version": "0.3.0",
+  "description": "Add an invisible, searchable text layer to a PDF from OCR JSON. Rust core, typed Node.js API.",
+  "type": "module",
+  "main": "./dist/lib.cjs",
+  "module": "./dist/lib.js",
+  "types": "./dist/lib.d.ts",
+  "sideEffects": false,
+  "bin": {
+    "pdf-textlayer": "./dist/cli.js"
+  },
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./dist/lib.d.ts",
+        "default": "./dist/lib.js"
+      },
+      "require": {
+        "types": "./dist/lib.d.cts",
+        "default": "./dist/lib.cjs"
+      }
+    },
+    "./package.json": "./package.json"
+  },
+  "napi": {
+    "name": "pdf-textlayer",
+    "triples": {
+      "defaults": true,
+      "additional": [
+        "aarch64-apple-darwin",
+        "aarch64-unknown-linux-gnu",
+        "aarch64-pc-windows-msvc",
+        "x86_64-unknown-linux-musl"
+      ]
+    }
+  },
+  "files": [
+    "dist",
+    "*.node",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build:rs": "napi build --cargo-cwd ../../crates/pdf-textlayer-napi --platform --release --js false --dts native.d.ts .",
+    "build:ts": "node scripts/clean-dist.mjs && tsc --noEmit && tsup",
+    "build": "npm run build:rs && npm run build:ts",
+    "test": "npm run build:ts && node --test tests/exports.test.mjs tests/textlayer.test.mjs"
+  },
+  "devDependencies": {
+    "@napi-rs/cli": "^2.18.4",
+    "@types/node": "^22.0.0",
+    "tsup": "^8.5.0",
+    "typescript": "~5.9.2"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "keywords": [
+    "pdf",
+    "ocr",
+    "searchable",
+    "textlayer",
+    "liteparse",
+    "accessibility"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/patelvivekdev/pdf-textlayer.git",
+    "directory": "packages/node"
+  },
+  "author": "Vivek Patel <me@patelvivek.dev>",
+  "license": "MIT"
+}
