@@ -763,7 +763,7 @@ fn composite_advances(document: &Document, widths: &[Object]) -> HashMap<u32, f6
             Some(last) => {
                 let (Some(last), Some(width)) = (
                     number(&last),
-                    widths.get(index + 2).and_then(&resolve).as_ref().and_then(number),
+                    widths.get(index + 2).and_then(resolve).as_ref().and_then(number),
                 ) else {
                     break;
                 };
