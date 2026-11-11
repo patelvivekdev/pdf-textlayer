@@ -1,0 +1,166 @@
+---
+title: Python
+description: The pdf_textlayer Python API — make_searchable_pdf, write_textlayer, add_textlayer, load_pages, and the TextBox, ParsedPage, Options, and Stats types.
+sidebar:
+  icon: code
+---
+
+<CodeGroup>
+
+```bash pip
+pip install pdf-textlayer
+```
+
+```bash uv
+uv add pdf-textlayer
+```
+
+</CodeGroup>
+
+Python 3.11 or newer. One wheel per platform (abi3) with no runtime dependencies. The package is fully typed (`py.typed`). Every function runs in Rust with the GIL released, so threads that call it run in parallel.
+
+```python
+from pdf_textlayer import Options, make_searchable_pdf
+
+stats = make_searchable_pdf(
+    "input.pdf",
+    "parsed.json",
+    "output.pdf",
+    options=Options(min_confidence=0.5),
+)
+```
+
+## Functions
+
+### make_searchable_pdf
+
+```python
+def make_searchable_pdf(
+    input_pdf: str | os.PathLike[str],
+    source: str | os.PathLike[str] | Mapping[str, Any] | Iterable[ParsedPage],
+    output_pdf: str | os.PathLike[str],
+    *,
+    adapter: str = "liteparse",
+    options: Options | None = None,
+) -> Stats
+```
+
+Reads OCR JSON with an [adapter](/guides/adapters) and writes the searchable PDF. `source` is a path to a JSON file or the already-loaded document (a `dict`). It may also be an iterable of `ParsedPage`, in which case `adapter` is ignored.
+
+### write_textlayer
+
+```python
+def write_textlayer(
+    input_pdf: str | os.PathLike[str],
+    pages: Iterable[ParsedPage],
+    output_pdf: str | os.PathLike[str],
+    *,
+    options: Options | None = None,
+) -> Stats
+```
+
+Writes the PDF from boxes you already have. Pages not listed in `pages`, or left with no drawable boxes, are copied unchanged. Order does not matter.
+
+### add_textlayer
+
+```python
+def add_textlayer(
+    pdf: bytes,
+    pages: Iterable[ParsedPage],
+    *,
+    options: Options | None = None,
+) -> tuple[bytes, Stats]
+```
+
+Same as `write_textlayer` for a PDF held in memory. Returns the new PDF and its stats.
+
+### load_pages
+
+```python
+def load_pages(
+    source: str | os.PathLike[str] | Mapping[str, Any],
+    *,
+    adapter: str = "liteparse",
+) -> list[ParsedPage]
+```
+
+Returns the pages an adapter reads from OCR JSON, so you can inspect, filter, or fix boxes before writing them. Pages without OCR boxes are omitted, and malformed pages and items are skipped.
+
+```python
+from pdf_textlayer import load_pages, write_textlayer
+
+pages = load_pages("parsed.json")
+pages = [page for page in pages if page.page_number != 3]  # leave page 3 alone
+write_textlayer("input.pdf", pages, "output.pdf")
+```
+
+### main
+
+```python
+def main(argv: list[str] | None = None) -> int
+```
+
+Runs the [CLI](/reference/cli) with `argv` (default `sys.argv[1:]`) and returns its exit code. The `pdf-textlayer` command calls it.
+
+## Types
+
+### TextBox
+
+```python
+@dataclass(frozen=True)
+class TextBox:
+    text: str
+    x: float
+    y: float
+    width: float
+    height: float
+    confidence: float = 1.0
+    rotation: float = 0.0
+```
+
+One piece of OCR text, in PDF points, with `(x, y)` the top-left corner of the box on the displayed page. `rotation` is degrees counter-clockwise. See [Coordinates](/guides/coordinates).
+
+### ParsedPage
+
+```python
+@dataclass(frozen=True)
+class ParsedPage:
+    page_number: int  # 1-indexed page of the input PDF
+    boxes: list[TextBox] = field(default_factory=list)
+```
+
+### Options
+
+```python
+@dataclass(frozen=True)
+class Options:
+    min_confidence: float = 0.0
+    font: str = "helv"
+    sanitize_unsupported: bool = True
+```
+
+| Field | Description |
+|---|---|
+| `min_confidence` | Drop boxes whose confidence is below this (0–1). `0.0` keeps everything, including a confidence of exactly 0. |
+| `font` | Whose character widths size each run: `helv`, `tiro`, or `cour`. Changes spacing, not appearance. See [Fonts](/guides/fonts). |
+| `sanitize_unsupported` | Replace characters that cannot be drawn with `?`. When `False`, boxes containing one are dropped. |
+
+### Stats
+
+```python
+class Stats(TypedDict):
+    pages: int            # pages in the document
+    ocr_pages: list[int]  # 1-indexed pages that received a text layer
+    items_drawn: int      # boxes drawn across all pages
+```
+
+## Errors
+
+| Exception | Raised when |
+|---|---|
+| `FileNotFoundError` | The input PDF or the JSON file does not exist. |
+| `OSError` | Another file error, such as an unwritable output path. |
+| `pdf_textlayer.PdfError` | The input is not a readable PDF, or it is encrypted. Subclass of `RuntimeError`. |
+| `ValueError` | An unknown adapter or font, or JSON that does not parse. |
+
+Nothing is written when an error is raised.

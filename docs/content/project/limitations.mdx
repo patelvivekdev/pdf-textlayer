@@ -1,0 +1,13 @@
+---
+title: Limitations
+description: Known limits of pdf-textlayer — rotation, render mode 3, geometric dedup, right-to-left text, memory use, and encrypted files.
+sidebar:
+  icon: triangle-alert
+---
+
+- **Rotation comes from the JSON.** `lit parse --format json --extract-text-metadata` includes `rotation` on each item. Without that flag the field is omitted and the run is drawn horizontally inside the box. Angles snap to `0`, `90`, `180`, or `270`.
+- **Invisible text uses PDF render mode 3.** All modern viewers and search indexers handle this correctly; very old tooling may not extract it.
+- **Overlap dedup is geometric.** Two words that sit side by side and barely intersect are both kept. A box that covers half or more of a native word is treated as that word and skipped.
+- **Right-to-left text is written in the order given.** Hebrew and Arabic are kept, but viewers expect such runs in visual order and may return them reversed.
+- **The whole PDF is held in memory.** Peak memory is about twice the input file size while it loads.
+- **Encrypted PDFs are rejected** (`PdfError` in Python, `ERR_INVALID_PDF` in Node.js), including files that open without a password. Version 0.2 could write those.

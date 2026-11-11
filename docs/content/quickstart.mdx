@@ -1,0 +1,88 @@
+---
+title: Quickstart
+description: Turn a scanned PDF into a searchable one in three steps — run OCR with LiteParse, install pdf-textlayer, and write the text layer.
+sidebar:
+  icon: rocket
+---
+
+You need a PDF and OCR results for it. This guide uses [LiteParse](https://github.com/run-llama/liteparse), whose JSON pdf-textlayer reads out of the box. Boxes from any other OCR engine work too; see [Adapters](/guides/adapters).
+
+<Steps>
+  <Step title="Run OCR">
+    LiteParse OCRs the pages that need it and writes JSON with a box for every word. `--extract-text-metadata` adds each word's rotation.
+
+    ```bash
+    lit parse scan.pdf --format json --extract-text-metadata -o parsed.json
+    ```
+  </Step>
+  <Step title="Install pdf-textlayer">
+    Install whichever package fits your project. Each one includes the `pdf-textlayer` command.
+
+    <Tabs>
+      <Tab title="Python">
+        ```bash
+        pip install pdf-textlayer
+        ```
+      </Tab>
+      <Tab title="Node.js">
+        ```bash
+        npm install pdf-textlayer
+        ```
+      </Tab>
+      <Tab title="Rust">
+        ```bash
+        cargo install pdf-textlayer
+        ```
+      </Tab>
+    </Tabs>
+  </Step>
+  <Step title="Write the text layer">
+    Run the command, or call the library from your code.
+
+    <CodeGroup>
+
+    ```bash CLI
+    pdf-textlayer scan.pdf parsed.json searchable.pdf
+    ```
+
+    ```python Python
+    from pdf_textlayer import make_searchable_pdf
+
+    stats = make_searchable_pdf("scan.pdf", "parsed.json", "searchable.pdf")
+    print(stats)  # {'pages': 1, 'ocr_pages': [1], 'items_drawn': 15}
+    ```
+
+    ```ts Node.js
+    import { makeSearchablePdf } from "pdf-textlayer";
+
+    const stats = await makeSearchablePdf("scan.pdf", "parsed.json", "searchable.pdf");
+    console.log(stats); // { pages: 1, ocrPages: [ 1 ], itemsDrawn: 15 }
+    ```
+
+    ```rust Rust
+    use pdf_textlayer::{Adapter, Options, make_searchable_pdf};
+
+    let stats = make_searchable_pdf("scan.pdf", "parsed.json", "searchable.pdf", Adapter::Liteparse, &Options::default())?;
+    println!("{stats:?}");
+    ```
+
+    </CodeGroup>
+  </Step>
+</Steps>
+
+Open `searchable.pdf`. It looks the same as `scan.pdf`, and search now finds its words.
+
+:::tip[Try it on the sample]
+The repository's [`examples/`](https://github.com/patelvivekdev/pdf-textlayer/tree/main/examples) folder has a one-page scan and its LiteParse JSON. Run the command on them and search for `Lovelace`.
+:::
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Mixed documents" href="/guides/mixed-pages" icon="layers">
+    What happens to pages that already have text.
+  </Card>
+  <Card title="Other OCR engines" href="/guides/adapters" icon="plug">
+    Feed boxes from Textract, Azure, Tesseract, or your own pipeline.
+  </Card>
+</CardGroup>

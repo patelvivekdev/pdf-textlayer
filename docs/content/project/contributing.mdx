@@ -1,0 +1,81 @@
+---
+title: Contributing
+description: How the repository is laid out, how to build and test the Rust core and the Python and Node.js packages, and how releases work.
+sidebar:
+  icon: git-pull-request
+---
+
+Bug reports, docs fixes, and new adapters are welcome on [GitHub](https://github.com/patelvivekdev/pdf-textlayer/issues).
+
+## Layout
+
+The repository follows [LiteParse](https://github.com/run-llama/liteparse): one Rust core, thin binding crates, and one package per language.
+
+| Path | What |
+|---|---|
+| `crates/pdf-textlayer` | The writer, the adapters, and the `pdf-textlayer` CLI. A plain Rust library. |
+| `crates/pdf-textlayer-python` | PyO3 bindings, built as `pdf_textlayer._native`. |
+| `crates/pdf-textlayer-napi` | napi-rs bindings, built as `pdf-textlayer.<platform>.node`. |
+| `packages/python` | The PyPI package: typed API and CLI entry point. |
+| `packages/node` | The npm package: TypeScript API (ESM + CJS) and CLI entry point. |
+| `docs` | This site, built with Blume. |
+| `examples` | A sample scan, its LiteParse JSON, and a script per language. |
+| `benchmarks` | The synthetic dataset and the timing and agreement scripts. |
+
+All behavior lives in `crates/pdf-textlayer`. A new option or entry point goes into the core first, then into both binding crates, then into the Python and Node.js wrappers and their type stubs, then these docs. Names stay parallel: snake_case in Rust and Python, camelCase in Node.js.
+
+## Build and test
+
+You need a Rust toolchain (1.88+), [uv](https://docs.astral.sh/uv/) for Python, and Node.js 20+.
+
+<CodeGroup>
+
+```bash All
+make lint   # cargo fmt --check, clippy, ruff, tsc
+make test   # Rust, Python, and Node.js suites
+```
+
+```bash Rust
+cargo test --workspace
+```
+
+```bash Python
+cd packages/python
+uv sync          # builds the extension in release mode
+uv run pytest    # PyMuPDF builds fixtures and reads the output back
+```
+
+```bash Node.js
+cd packages/node
+npm install
+npm run build    # napi build, then tsup (ESM + CJS)
+npm test
+```
+
+```bash Docs
+cd docs
+npm install
+npm run dev      # http://localhost:4321
+```
+
+</CodeGroup>
+
+`uv sync` rebuilds the extension when a Rust source changes. The Node.js package loads the `.node` file `npm run build:rs` writes next to its `package.json`.
+
+## Releases
+
+Releases are manual GitHub Actions workflows. Each checks that the version you enter matches the package before building anything, and has a dry-run option.
+
+| Workflow | Publishes |
+|---|---|
+| `release-crates.yml` | The crate to crates.io, and CLI binaries for Linux, macOS, and Windows on a GitHub release. |
+| `release-python.yml` | abi3 wheels for every platform and an sdist to PyPI, with trusted publishing (no PyPI token). |
+| `release-node.yml` | One npm package per platform holding its `.node` file, plus the main package, which lists them as optional dependencies. They are staged with trusted publishing (no npm token) and go live only after a maintainer approves them with 2FA on npmjs.com. |
+
+Versions must match across `Cargo.toml`, `packages/python/pyproject.toml`, and `packages/node/package.json`.
+
+Publishing jobs run in the GitHub environments `npm`, `pypi`, and `crates-io`, which need a maintainer's approval and deploy only from `main`. Dry runs skip them. npm and PyPI use trusted publishing, so neither stores a token; `scripts/setup-npm-trust.sh` sets up the npm side once. crates.io reads `CARGO_REGISTRY_TOKEN`, a secret of the `crates-io` environment.
+
+## Docs
+
+This site is built with [Blume](https://useblume.dev) from the Markdown in `docs/content`. To deploy it on Vercel, import the repository, set the project's **Root Directory** to `docs`, and keep the defaults from `docs/vercel.json`.

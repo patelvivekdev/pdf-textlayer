@@ -1,0 +1,90 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": null,
+  "installCommand": "npm install",
+  "buildCommand": "npm run build",
+  "outputDirectory": "dist",
+  "headers": [
+    {
+      "headers": [
+        {
+          "key": "Content-Type",
+          "value": "text/markdown; charset=utf-8"
+        }
+      ],
+      "source": "/(.*).md"
+    },
+    {
+      "headers": [
+        {
+          "key": "Content-Type",
+          "value": "text/markdown; charset=utf-8"
+        }
+      ],
+      "source": "/(.*).mdx"
+    },
+    {
+      "headers": [
+        {
+          "key": "Content-Type",
+          "value": "text/plain; charset=utf-8"
+        }
+      ],
+      "source": "/(.*).txt"
+    },
+    {
+      "headers": [
+        {
+          "key": "X-Powered-By",
+          "value": "Blume"
+        }
+      ],
+      "source": "/:path(.*)?"
+    },
+    {
+      "headers": [
+        {
+          "key": "Link",
+          "value": "</.well-known/api-catalog>; rel=\"api-catalog\"; type=\"application/linkset+json; profile=\\\"https://www.rfc-editor.org/info/rfc9727\\\"\", </openapi.json>; rel=\"service-desc\"; type=\"application/json\", </agent-readability.json>; rel=\"describedby\"; type=\"application/json\", </llms.txt>; rel=\"describedby\"; type=\"text/plain\", </index.md>; rel=\"alternate\"; type=\"text/markdown\""
+        }
+      ],
+      "source": "/"
+    },
+    {
+      "headers": [
+        {
+          "key": "Content-Type",
+          "value": "application/linkset+json; profile=\"https://www.rfc-editor.org/info/rfc9727\""
+        }
+      ],
+      "source": "/.well-known/api-catalog"
+    },
+    {
+      "headers": [
+        {
+          "key": "Access-Control-Allow-Origin",
+          "value": "*"
+        }
+      ],
+      "source": "/.well-known/api-catalog"
+    },
+    {
+      "headers": [
+        {
+          "key": "Content-Security-Policy",
+          "value": "sandbox"
+        }
+      ],
+      "source": "/blume-assets/(.*).svg"
+    },
+    {
+      "headers": [
+        {
+          "key": "X-Content-Type-Options",
+          "value": "nosniff"
+        }
+      ],
+      "source": "/blume-assets/(.*).svg"
+    }
+  ]
+}

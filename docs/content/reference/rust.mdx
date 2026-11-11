@@ -1,0 +1,70 @@
+---
+title: Rust
+description: The pdf-textlayer crate — write_text_layer, add_text_layer, make_searchable_pdf, adapters, options, errors, and the cli feature.
+sidebar:
+  icon: cog
+---
+
+```bash
+cargo add pdf-textlayer
+```
+
+The crate is the writer the CLI and the Python and Node.js packages wrap. It is built on [lopdf](https://github.com/J-F-Liu/lopdf) and needs Rust 1.88 or newer. Full API docs are on [docs.rs](https://docs.rs/pdf-textlayer).
+
+```rust
+use pdf_textlayer::{Adapter, Options, ParsedPage, TextBox, make_searchable_pdf, write_text_layer};
+
+// OCR JSON from a supported tool
+let stats = make_searchable_pdf("scan.pdf", "parsed.json", "searchable.pdf", Adapter::Liteparse, &Options::default())?;
+
+// Boxes from anywhere else
+let pages = vec![ParsedPage {
+    page_number: 1,
+    boxes: vec![TextBox::new("Hello world", 72.0, 100.0, 120.0, 12.0)],
+}];
+let stats = write_text_layer("scan.pdf", &pages, "searchable.pdf", &Options::default())?;
+```
+
+## Functions
+
+| Function | Does |
+|---|---|
+| `write_text_layer(input, &pages, output, &options) -> Result<Stats, Error>` | Reads the PDF at `input`, draws `pages`, and saves to `output`. Nothing is written when the input cannot be read. |
+| `add_text_layer(&pdf, &pages, &options) -> Result<(Vec<u8>, Stats), Error>` | The same for a PDF in memory. |
+| `make_searchable_pdf(input, source, output, adapter, &options) -> Result<Stats, Error>` | Reads the OCR JSON file at `source` with `adapter`, then writes. |
+
+## Types
+
+| Type | Description |
+|---|---|
+| `TextBox` | `text`, `x`, `y`, `width`, `height`, `confidence`, `rotation`. `TextBox::new(text, x, y, width, height)` sets confidence 1 and rotation 0. |
+| `ParsedPage` | `page_number` (1-indexed) and `boxes`. |
+| `Options` | `min_confidence` (default `0.0`), `font: FontMetrics` (default Helvetica), `sanitize_unsupported` (default `true`). |
+| `FontMetrics` | `Helvetica`, `Times`, or `Courier`. Parses from `helv`, `tiro`, `cour` and their long names. |
+| `Stats` | `pages`, `ocr_pages` (1-indexed), `items_drawn`. |
+| `Adapter` | A supported JSON format. `parse(&Value)`, `parse_str(&str)`, and `parse_file(path)` return `Vec<ParsedPage>`; `"liteparse".parse::<Adapter>()` resolves a name. |
+
+## Errors
+
+`Error` is one enum for every entry point:
+
+| Variant | Cause |
+|---|---|
+| `Io { path, source }` | A file could not be read or written. |
+| `Pdf(lopdf::Error)` | The input is not a readable PDF. |
+| `Encrypted` | The input is encrypted, even if it opens without a password. |
+| `Json(serde_json::Error)` | The OCR JSON does not parse. |
+| `UnknownAdapter(String)` / `UnknownFont(String)` | A name that does not resolve. |
+
+## Features
+
+| Feature | Default | Adds |
+|---|---|---|
+| `cli` | on | The `pdf-textlayer` binary and `pdf_textlayer::cli::{run, main}`, built on `clap`. |
+
+A library that does not need the command can drop `clap`:
+
+```toml Cargo.toml
+[dependencies]
+pdf-textlayer = { version = "0.3", default-features = false }
+```

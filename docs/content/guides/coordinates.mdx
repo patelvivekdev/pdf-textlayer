@@ -1,0 +1,36 @@
+---
+title: Coordinates and rotation
+description: The coordinate system text boxes use, how rotated text and rotated or cropped pages are handled, and how to convert from pixel coordinates.
+sidebar:
+  icon: move
+---
+
+Every box uses the coordinates of the page as a reader sees it:
+
+- Units are PDF points (1/72 inch).
+- The origin is the **top-left** corner of the displayed page. `x` grows to the right, `y` grows down.
+- `(x, y)` is the top-left corner of the box, and `width` and `height` are its size.
+
+This is the viewport LiteParse emits, so its boxes go in unchanged.
+
+## Rotated pages and cropped pages
+
+Boxes are always given in the upright, displayed page. On a page with a `/Rotate` entry, pdf-textlayer maps each box back onto the page's unrotated coordinate system, so a page displayed in landscape takes landscape coordinates.
+
+On a page with a crop box, the origin is the top-left corner of the crop box, which is the visible area.
+
+## Rotated text
+
+A box's `rotation` is the direction of its text, in degrees counter-clockwise: `0` reads left to right, `90` reads bottom to top, `180` is upside down, and `270` reads top to bottom. Other values snap to the nearest right angle.
+
+The box itself stays axis-aligned: a vertical run of text is a tall, narrow box with `rotation` set to `90` or `270`.
+
+## Converting from pixels
+
+OCR engines that work on page images report pixels. Divide by the render resolution and multiply by 72:
+
+```python
+points = pixels * 72 / dpi
+```
+
+If the engine's origin is the bottom-left corner instead (as in raw PDF space), flip `y` with the page height in points: `y = page_height - y_bottom - height`.

@@ -1,0 +1,61 @@
+---
+title: CLI
+description: The pdf-textlayer command — arguments, options, output, and exit codes. The same Rust command ships in the Python, Node.js, and Rust packages.
+sidebar:
+  icon: terminal
+---
+
+Every package installs the same `pdf-textlayer` command, implemented once in Rust, so it behaves identically however you installed it.
+
+| Installed with | Run it as |
+|---|---|
+| `pip install pdf-textlayer` / `uv add pdf-textlayer` | `pdf-textlayer` (or `uvx pdf-textlayer` without installing) |
+| `npm install pdf-textlayer` | `npx pdf-textlayer` |
+| `cargo install pdf-textlayer` | `pdf-textlayer` |
+
+## Usage
+
+```text
+pdf-textlayer [OPTIONS] <INPUT_PDF> <PARSED_JSON> <OUTPUT_PDF>
+```
+
+| Argument | Description |
+|---|---|
+| `INPUT_PDF` | Source PDF: scanned, native, or mixed. |
+| `PARSED_JSON` | OCR JSON for the source PDF, in the format `--from` names. |
+| `OUTPUT_PDF` | Where to write the result. Overwritten if it exists. |
+
+## Options
+
+| Option | Default | Description |
+|---|---|---|
+| `--from <ADAPTER>` | `liteparse` | The JSON format of `PARSED_JSON`. See [Adapters](/guides/adapters). |
+| `--min-confidence <N>` | `0` | Drop OCR items whose confidence is below `N` (0–1). |
+| `--font <FONT>` | `helv` | Whose character widths size the invisible text: `helv` (Helvetica), `tiro` (Times), or `cour` (Courier). See [Fonts](/guides/fonts). |
+| `-h`, `--help` | | Print help. |
+| `-V`, `--version` | | Print the version. |
+
+## Output
+
+On success the command prints what it wrote:
+
+```console
+$ pdf-textlayer scan.pdf parsed.json searchable.pdf
+Wrote: searchable.pdf
+Pages: 1
+Text layer added on 1 page(s): 1
+Items drawn: 15
+```
+
+## Exit codes
+
+| Code | Meaning |
+|---|---|
+| `0` | The PDF was written. |
+| `1` | The input could not be read: a missing file, a file that is not a readable PDF, an encrypted PDF, or invalid JSON. The reason is printed to stderr as `error: …`, and nothing is written. |
+| `2` | Invalid arguments, such as an unknown `--from` or `--font`. |
+
+```console
+$ pdf-textlayer missing.pdf parsed.json out.pdf
+error: missing.pdf: No such file or directory (os error 2)
+```
