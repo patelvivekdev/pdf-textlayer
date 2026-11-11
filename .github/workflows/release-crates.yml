@@ -22,8 +22,8 @@ jobs:
   validate:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@1.99.1
       - name: Validate version
         run: |
           VERSION=$(cargo metadata --no-deps --format-version 1 | jq -r '.packages[] | select(.name == "pdf-textlayer") | .version')
@@ -47,8 +47,8 @@ jobs:
     runs-on: ${{ matrix.os }}
     name: CLI ${{ matrix.target }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@1.99.1
         with:
           targets: ${{ matrix.target }}
       - run: cargo build --release --locked -p pdf-textlayer --target ${{ matrix.target }}
@@ -60,7 +60,7 @@ jobs:
           [ -f "$bin.exe" ] && bin="$bin.exe"
           cp "$bin" dist/
           tar -czf "pdf-textlayer-${{ matrix.target }}.tar.gz" -C dist .
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: cli-${{ matrix.target }}
           path: pdf-textlayer-${{ matrix.target }}.tar.gz
@@ -73,8 +73,8 @@ jobs:
     # environment, so no other job can read it.
     environment: crates-io
     steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@1.99.1
       - name: Publish to crates.io
         env:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
@@ -86,8 +86,8 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/download-artifact@v4
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v8
         with:
           pattern: cli-*
           path: dist

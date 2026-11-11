@@ -28,7 +28,7 @@ jobs:
   validate:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Validate version
         run: |
           VERSION=$(node -p "require('./packages/node/package.json').version")
@@ -56,11 +56,11 @@ jobs:
       run:
         working-directory: packages/node
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@1.99.1
         with:
           targets: ${{ matrix.target }}
       - name: Install musl tools
@@ -73,7 +73,7 @@ jobs:
           # A cdylib needs a dynamically linked C runtime on musl.
           RUSTFLAGS: ${{ matrix.musl && '-C target-feature=-crt-static' || '' }}
         run: npx napi build --cargo-cwd ../../crates/pdf-textlayer-napi --platform --release --js false --target ${{ matrix.target }} .
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: bindings-${{ matrix.platform }}
           path: packages/node/*.node
@@ -93,8 +93,8 @@ jobs:
       run:
         working-directory: packages/node
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
       # Drop the published platform packages: the loader prefers them over the
@@ -103,7 +103,7 @@ jobs:
         run: |
           npm ci
           rm -rf node_modules/pdf-textlayer-*
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           name: bindings-${{ matrix.platform }}
           path: packages/node
@@ -116,13 +116,13 @@ jobs:
       run:
         working-directory: packages/node
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: 24
       - run: npm ci
       - run: npm run build:ts
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           pattern: bindings-*
           path: artifacts
@@ -160,7 +160,7 @@ jobs:
           npm pack --pack-destination ../../release
           ls -la ../../release
           for tarball in ../../release/*.tgz; do tar -tzf "$tarball"; done
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: npm-packages
           path: release/*.tgz
@@ -177,13 +177,13 @@ jobs:
       contents: read
       id-token: write # npm trusted publishing (OIDC); no npm token is stored
     steps:
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: 24
           registry-url: https://registry.npmjs.org
       # Staged publishing needs npm >= 11.15.0.
       - run: npm install -g npm@latest
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           name: npm-packages
           path: release
@@ -207,7 +207,7 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Tag and release
         env:
           GH_TOKEN: ${{ github.token }}
