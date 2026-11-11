@@ -50,7 +50,7 @@
   "devDependencies": {
     "@napi-rs/cli": "^2.18.4",
     "@types/node": "^22.0.0",
-    "tsup": "^8.5.0",
+    "tsup": "^9.0.0",
     "typescript": "~5.9.2"
   },
   "engines": {
