@@ -1,0 +1,44 @@
+name: CI - Rust
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fmt --all --check
+      - run: cargo clippy --workspace --all-targets -- -D warnings
+
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      # The binding crates are built and tested by ci-python.yml and ci-node.yml.
+      - run: cargo test -p pdf-textlayer
+      - run: cargo test -p pdf-textlayer --no-default-features --lib
+      - name: CLI smoke test
+        shell: bash
+        run: |
+          cargo run -q -p pdf-textlayer -- examples/scan.pdf examples/parsed.json searchable.pdf
+          cargo run -q -p pdf-textlayer -- --version
