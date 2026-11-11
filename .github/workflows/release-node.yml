@@ -1,0 +1,217 @@
+name: Release - Node.js
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to release (e.g. 0.3.0)"
+        required: true
+        type: string
+      beta:
+        description: "Publish with the npm tag beta instead of latest"
+        type: boolean
+        default: false
+      dry-run:
+        description: "Dry run (build but do not publish)"
+        type: boolean
+        default: false
+
+# Each job asks for what it needs: only `publish` gets an OIDC token, and it
+# installs nothing.
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate version
+        run: |
+          VERSION=$(node -p "require('./packages/node/package.json').version")
+          if [ "$VERSION" != "${{ inputs.version }}" ]; then
+            echo "::error::packages/node/package.json has $VERSION, expected ${{ inputs.version }}"
+            exit 1
+          fi
+
+  build:
+    needs: validate
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: macos-latest, target: aarch64-apple-darwin, platform: darwin-arm64 }
+          - { os: macos-latest, target: x86_64-apple-darwin, platform: darwin-x64 }
+          - { os: ubuntu-22.04, target: x86_64-unknown-linux-gnu, platform: linux-x64-gnu }
+          - { os: ubuntu-22.04-arm, target: aarch64-unknown-linux-gnu, platform: linux-arm64-gnu }
+          - { os: ubuntu-22.04, target: x86_64-unknown-linux-musl, platform: linux-x64-musl, musl: true }
+          - { os: windows-latest, target: x86_64-pc-windows-msvc, platform: win32-x64-msvc }
+          - { os: windows-11-arm, target: aarch64-pc-windows-msvc, platform: win32-arm64-msvc }
+    runs-on: ${{ matrix.os }}
+    name: Build ${{ matrix.platform }}
+    defaults:
+      run:
+        working-directory: packages/node
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+      - name: Install musl tools
+        if: ${{ matrix.musl }}
+        run: sudo apt-get update && sudo apt-get install -y musl-tools
+      - run: npm ci
+      - name: Build native module
+        shell: bash
+        env:
+          # A cdylib needs a dynamically linked C runtime on musl.
+          RUSTFLAGS: ${{ matrix.musl && '-C target-feature=-crt-static' || '' }}
+        run: npx napi build --cargo-cwd ../../crates/pdf-textlayer-napi --platform --release --js false --target ${{ matrix.target }} .
+      - uses: actions/upload-artifact@v4
+        with:
+          name: bindings-${{ matrix.platform }}
+          path: packages/node/*.node
+
+  test:
+    needs: build
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: macos-latest, platform: darwin-arm64 }
+          - { os: ubuntu-22.04, platform: linux-x64-gnu }
+          - { os: windows-latest, platform: win32-x64-msvc }
+    runs-on: ${{ matrix.os }}
+    name: Test ${{ matrix.platform }}
+    defaults:
+      run:
+        working-directory: packages/node
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      # Drop the published platform packages: the loader prefers them over the
+      # .node file built from this commit.
+      - shell: bash
+        run: |
+          npm ci
+          rm -rf node_modules/pdf-textlayer-*
+      - uses: actions/download-artifact@v4
+        with:
+          name: bindings-${{ matrix.platform }}
+          path: packages/node
+      - run: npm test
+
+  package:
+    needs: test
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: packages/node
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: npm ci
+      - run: npm run build:ts
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: bindings-*
+          path: artifacts
+      - name: Pack the platform packages and the main package
+        run: |
+          mkdir -p ../../release
+          for dir in ../../artifacts/bindings-*; do
+            platform=${dir##*/bindings-}
+            IFS=- read -r os cpu libc <<< "$platform"
+            mkdir -p "npm/$platform"
+            cp "$dir"/*.node "npm/$platform/"
+            libc_field=""
+            case "$libc" in
+              gnu) libc_field='"libc": ["glibc"],' ;;
+              musl) libc_field='"libc": ["musl"],' ;;
+            esac
+            cat > "npm/$platform/package.json" <<JSON
+          {
+            "name": "pdf-textlayer-$platform",
+            "version": "${{ inputs.version }}",
+            "description": "pdf-textlayer native module for $platform",
+            "os": ["$os"],
+            "cpu": ["$cpu"],
+            $libc_field
+            "main": "pdf-textlayer.$platform.node",
+            "files": ["pdf-textlayer.$platform.node"],
+            "license": "MIT",
+            "repository": { "type": "git", "url": "https://github.com/patelvivekdev/pdf-textlayer.git" }
+          }
+          JSON
+            (cd "npm/$platform" && npm pack --pack-destination ../../../../release)
+            # The main package installs the platform package that matches the host.
+            npm pkg set "optionalDependencies.pdf-textlayer-$platform=${{ inputs.version }}"
+          done
+          npm pack --pack-destination ../../release
+          ls -la ../../release
+          for tarball in ../../release/*.tgz; do tar -tzf "$tarball"; done
+      - uses: actions/upload-artifact@v4
+        with:
+          name: npm-packages
+          path: release/*.tgz
+          if-no-files-found: error
+
+  publish:
+    needs: package
+    if: ${{ !inputs.dry-run }}
+    runs-on: ubuntu-latest
+    # Add yourself as a required reviewer of this environment, and name it in
+    # each package's trusted publisher on npmjs.com.
+    environment: npm
+    permissions:
+      contents: read
+      id-token: write # npm trusted publishing (OIDC); no npm token is stored
+    steps:
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          registry-url: https://registry.npmjs.org
+      # Staged publishing needs npm >= 11.15.0.
+      - run: npm install -g npm@latest
+      - uses: actions/download-artifact@v4
+        with:
+          name: npm-packages
+          path: release
+      # `npm stage publish` uploads each version for review; nothing is public
+      # until a maintainer approves it with 2FA on npmjs.com. The tarballs were
+      # packed and tested in earlier jobs, and no dependency is installed here.
+      - name: Stage the packages for approval
+        env:
+          NPM_TAG: ${{ inputs.beta && 'beta' || 'latest' }}
+        run: |
+          for tarball in release/*.tgz; do
+            rm -rf package
+            tar -xzf "$tarball"
+            (cd package && npm stage publish --ignore-scripts --access public --tag "$NPM_TAG")
+          done
+          echo "Approve the staged versions at https://www.npmjs.com/settings/~/packages (Staged Packages)." >> "$GITHUB_STEP_SUMMARY"
+
+  release:
+    needs: publish
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Tag and release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          git tag "node-v${{ inputs.version }}"
+          git push origin "node-v${{ inputs.version }}"
+          gh release create "node-v${{ inputs.version }}" --title "Node.js v${{ inputs.version }}" --generate-notes
