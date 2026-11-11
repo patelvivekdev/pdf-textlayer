@@ -1,0 +1,41 @@
+---
+title: pdf-textlayer
+description: Add an invisible, searchable text layer to a PDF from OCR JSON. One Rust core, shipped as a CLI, a Python package, and a Node.js package.
+sidebar:
+  label: Introduction
+  icon: house
+---
+
+Give pdf-textlayer a PDF and the JSON your OCR pipeline wrote for it. It writes a new PDF where every OCR word sits at its bounding box as invisible text (PDF render mode 3). The page looks exactly the same, and `Ctrl+F`, copy and paste, screen readers, and search indexers now find the words.
+
+```bash
+lit parse scan.pdf --format json --extract-text-metadata -o parsed.json
+pdf-textlayer scan.pdf parsed.json searchable.pdf
+```
+
+## Why use it
+
+- **Mixed PDFs come out right.** A 200-page contract with two scanned exhibits gets text only on the scanned pages. Native text, embedded fonts, and annotations pass through untouched, and an OCR word that lands on a word the page already has is skipped.
+- **Every script is kept.** CJK, Cyrillic, Greek, and the rest of the Basic Multilingual Plane are written as real text, with no font to pick.
+- **Fast.** A 500-page scan with 22,500 OCR boxes takes about 0.4 s. See [Benchmarks](/project/benchmarks).
+- **No runtime dependencies.** Each package is one compiled library.
+- **One core, three ways in.** The writer is Rust. The CLI, the Python package, and the Node.js package all run the same code, so output is identical across them.
+
+## Pick your package
+
+<CardGroup cols={2}>
+  <Card title="CLI" href="/reference/cli" icon="terminal">
+    Installed by every package below, and by `cargo install`.
+  </Card>
+  <Card title="Python" href="/reference/python" icon="code">
+    `pip install pdf-textlayer`. Typed API, Python 3.11+.
+  </Card>
+  <Card title="Node.js" href="/reference/node" icon="hexagon">
+    `npm install pdf-textlayer`. ESM and CommonJS, Node.js 20+.
+  </Card>
+  <Card title="Rust" href="/reference/rust" icon="cog">
+    `cargo add pdf-textlayer`. The library the others wrap.
+  </Card>
+</CardGroup>
+
+New here? Start with the [Quickstart](/quickstart).

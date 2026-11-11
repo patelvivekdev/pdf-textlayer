@@ -1,0 +1,148 @@
+---
+title: Node.js
+description: The pdf-textlayer Node.js API — makeSearchablePdf, writeTextLayer, addTextLayer, loadPages, their TypeScript types, and error codes.
+sidebar:
+  icon: hexagon
+---
+
+```package-install
+npm install pdf-textlayer
+```
+
+Node.js 20 or newer, ESM and CommonJS, with TypeScript types included. A prebuilt native module is installed for macOS (arm64, x64), Linux (x64 and arm64 with glibc, x64 with musl), and Windows (x64, arm64); nothing is compiled on install. Writes run on the libuv thread pool, so they never block the event loop.
+
+<CodeGroup>
+
+```ts ESM
+import { makeSearchablePdf } from "pdf-textlayer";
+
+const stats = await makeSearchablePdf("input.pdf", "parsed.json", "output.pdf", {
+  minConfidence: 0.5,
+});
+```
+
+```js CommonJS
+const { makeSearchablePdf } = require("pdf-textlayer");
+
+makeSearchablePdf("input.pdf", "parsed.json", "output.pdf").then(console.log);
+```
+
+</CodeGroup>
+
+## Functions
+
+### makeSearchablePdf
+
+```ts
+function makeSearchablePdf(
+  input: string,
+  source: Source | ParsedPage[],
+  output: string,
+  options?: MakeSearchableOptions,
+): Promise<Stats>;
+```
+
+Reads OCR JSON with an [adapter](/guides/adapters) and writes the searchable PDF. `source` is a path (string or `URL`) to a JSON file, or the already-parsed document. It may also be an array of pages, in which case `adapter` is ignored.
+
+### writeTextLayer
+
+```ts
+function writeTextLayer(
+  input: string,
+  pages: ParsedPage[],
+  output: string,
+  options?: Options,
+): Promise<Stats>;
+```
+
+Writes the PDF from boxes you already have. Pages not listed, or left with no drawable boxes, are copied unchanged.
+
+### addTextLayer
+
+```ts
+function addTextLayer(
+  pdf: Uint8Array,
+  pages: ParsedPage[],
+  options?: Options,
+): Promise<{ pdf: Buffer; stats: Stats }>;
+```
+
+Same as `writeTextLayer` for a PDF held in memory, such as an upload or an object from storage.
+
+```ts
+import { readFile } from "node:fs/promises";
+import { addTextLayer, loadPages } from "pdf-textlayer";
+
+const pages = await loadPages("parsed.json");
+const { pdf, stats } = await addTextLayer(await readFile("scan.pdf"), pages);
+```
+
+### loadPages
+
+```ts
+function loadPages(source: Source, options?: { adapter?: Adapter }): Promise<ParsedPage[]>;
+```
+
+Resolves to the pages an adapter reads from OCR JSON, to inspect or edit before writing. Pages without OCR boxes are omitted, and malformed pages and items are skipped.
+
+## Types
+
+```ts
+interface TextBox {
+  text: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  confidence?: number; // 0–1, default 1
+  rotation?: number; // degrees counter-clockwise, default 0
+}
+
+interface ParsedPage {
+  pageNumber: number; // 1-indexed page of the input PDF
+  boxes: TextBox[];
+}
+
+type FontName = "helv" | "tiro" | "cour";
+type Adapter = "liteparse";
+type Source = string | URL | Record<string, unknown>;
+
+interface Options {
+  minConfidence?: number; // default 0
+  font?: FontName; // default "helv"
+  sanitizeUnsupported?: boolean; // default true
+}
+
+interface MakeSearchableOptions extends Options {
+  adapter?: Adapter; // default "liteparse"
+}
+
+interface Stats {
+  pages: number; // pages in the document
+  ocrPages: number[]; // 1-indexed pages that received a text layer
+  itemsDrawn: number; // boxes drawn across all pages
+}
+```
+
+Boxes use PDF points with `(x, y)` the top-left corner on the displayed page; see [Coordinates](/guides/coordinates). The options match the [Python options](/reference/python#options) field for field.
+
+## Errors
+
+Every function returns a promise that rejects with an `Error` whose `code` names what went wrong. Nothing is written when it rejects.
+
+| `code` | Meaning |
+|---|---|
+| `ENOENT` | The input PDF or the JSON file does not exist. |
+| `EIO` | Another file error, such as an unwritable output path. |
+| `ERR_INVALID_PDF` | The input is not a readable PDF, or it is encrypted. |
+| `ERR_INVALID_ARG_VALUE` | An unknown adapter or font, or JSON that does not parse. |
+
+```ts
+try {
+  await makeSearchablePdf("scan.pdf", "parsed.json", "out.pdf");
+} catch (error) {
+  if (error.code === "ERR_INVALID_PDF") {
+    // skip files that are not PDFs, or are encrypted
+  }
+}
+```

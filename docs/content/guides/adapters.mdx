@@ -1,0 +1,114 @@
+---
+title: Adapters and other OCR engines
+description: Read LiteParse JSON with the built-in adapter, or feed boxes from Textract, Azure Document Intelligence, Tesseract, or your own pipeline.
+sidebar:
+  label: Adapters
+  icon: plug
+---
+
+An adapter turns one OCR tool's JSON into pages of text boxes. Adapters are part of the Rust core, so the CLI, Python, Node.js, and Rust read a given file the same way.
+
+| Name | Source | Reads |
+|---|---|---|
+| `liteparse` (default) | [LiteParse](https://github.com/run-llama/liteparse) `lit parse --format json` | `pages[].text_items[]` whose `font_name` is `"OCR"`. |
+
+Pick the adapter with `--from` on the CLI, `adapter=` in Python, `adapter:` in Node.js, or an `Adapter` value in Rust.
+
+## LiteParse
+
+```bash
+lit parse input.pdf --format json --extract-text-metadata -o parsed.json
+```
+
+The adapter reads these fields from each item, and ignores the rest (font metrics, colors, blocks, annotations):
+
+```json
+{
+  "pages": [
+    {
+      "page": 1,
+      "text_items": [
+        {
+          "text": "Hello",
+          "x": 72.0,
+          "y": 100.0,
+          "width": 40.0,
+          "height": 12.0,
+          "font_name": "OCR",
+          "confidence": 0.98,
+          "rotation": 0.0
+        }
+      ]
+    }
+  ]
+}
+```
+
+- `confidence` defaults to 1 and `rotation` to 0 when missing. LiteParse writes `rotation` only with `--extract-text-metadata`; without it, rotated text is drawn horizontally inside its box.
+- Items with empty text, or a width or height of zero or less, are skipped.
+- A malformed page or item is skipped rather than failing the whole file.
+- The field names of older LiteParse versions, `textItems` and `fontName`, are still accepted.
+
+## Inspect or edit before writing
+
+`load_pages` (Python) and `loadPages` (Node.js) return what the adapter read, so you can drop pages, fix text, or filter boxes before writing:
+
+<CodeGroup>
+
+```python Python
+from pdf_textlayer import ParsedPage, load_pages, write_textlayer
+
+pages = [
+    ParsedPage(page.page_number, [box for box in page.boxes if len(box.text) > 1])
+    for page in load_pages("parsed.json")
+]
+write_textlayer("input.pdf", pages, "output.pdf")
+```
+
+```ts Node.js
+import { loadPages, writeTextLayer } from "pdf-textlayer";
+
+const pages = (await loadPages("parsed.json")).map((page) => ({
+  ...page,
+  boxes: page.boxes.filter((box) => box.text.length > 1),
+}));
+await writeTextLayer("input.pdf", pages, "output.pdf");
+```
+
+</CodeGroup>
+
+## Any other OCR engine
+
+Every package takes boxes directly, so an engine without an adapter needs only a few lines of conversion. Convert its output to [pdf-textlayer coordinates](/guides/coordinates) — PDF points, top-left origin, `(x, y)` at the box's top-left corner — and call `write_textlayer` / `writeTextLayer` / `write_text_layer`.
+
+For example, Tesseract's TSV output (`tesseract scan.png out tsv`) gives word boxes in image pixels. Scale them by `72 / dpi`:
+
+```python
+import csv
+
+from pdf_textlayer import ParsedPage, TextBox, write_textlayer
+
+DPI = 300  # the resolution the page was rendered at for OCR
+scale = 72 / DPI
+
+boxes = []
+with open("out.tsv", newline="") as tsv:
+    for row in csv.DictReader(tsv, delimiter="\t", quoting=csv.QUOTE_NONE):
+        if row["level"] == "5" and row["text"].strip():
+            boxes.append(
+                TextBox(
+                    text=row["text"],
+                    x=int(row["left"]) * scale,
+                    y=int(row["top"]) * scale,
+                    width=int(row["width"]) * scale,
+                    height=int(row["height"]) * scale,
+                    confidence=float(row["conf"]) / 100,
+                )
+            )
+
+write_textlayer("scan.pdf", [ParsedPage(page_number=1, boxes=boxes)], "searchable.pdf")
+```
+
+## Adding an adapter
+
+Adapters live in [`crates/pdf-textlayer/src/adapters.rs`](https://github.com/patelvivekdev/pdf-textlayer/blob/main/crates/pdf-textlayer/src/adapters.rs). Add a variant to `Adapter`, its name, and a function that turns the tool's JSON into `Vec<ParsedPage>`; every package picks it up. Pull requests for Azure Document Intelligence, Textract, hOCR, and others are welcome.

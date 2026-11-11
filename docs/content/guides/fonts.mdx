@@ -1,0 +1,34 @@
+---
+title: Fonts and non-Latin text
+description: How the invisible text is sized, what the font option changes, which characters can be written, and how right-to-left text behaves.
+sidebar:
+  icon: type
+---
+
+The text layer uses one small font that pdf-textlayer builds itself, a few kilobytes at most, written once per document. Its glyphs are plain rectangles, one per character width in use: the text is never painted, so a glyph only has to tell viewers how big a character is. Tesseract and OCRmyPDF write their text layers with a font of the same kind.
+
+## Every script, no font to choose
+
+Character codes are UTF-16 code units, so the same font carries Latin, CJK, Cyrillic, Greek, Arabic, Hebrew, and every other script in the Basic Multilingual Plane. There is no font to install or pick per language.
+
+## The font option
+
+`font` (`--font` on the CLI) picks whose character widths size the invisible text:
+
+| Value | Widths of |
+|---|---|
+| `helv` (default) | Helvetica. Fits most printed sans-serif text. |
+| `tiro` | Times. Closer for serif body text. |
+| `cour` | Courier. Every character is the same width. |
+
+It changes spacing, not appearance. OCR engines often report a whole line as one box, and a word inside the line lands under its image only when the characters before it advance about as far as the printed ones did. Pick the option closest to the printed typeface for the best word-level selection.
+
+The CJK names from version 0.2 (`china-s`, `china-t`, `japan`, `korea`) are still accepted by the libraries and behave like `helv`.
+
+## Characters that cannot be written
+
+Control characters, zero-width characters, and characters outside the Basic Multilingual Plane (emoji, for example) cannot be drawn. By default they are replaced with `?`, so the rest of the box stays searchable. Set `sanitize_unsupported` (`sanitizeUnsupported` in Node.js) to false to drop those boxes instead.
+
+## Right-to-left text
+
+Hebrew and Arabic are written in the order the OCR engine gives them. Viewers expect such runs in visual order, so some may return them reversed when you search or copy.

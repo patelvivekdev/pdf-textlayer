@@ -1,0 +1,30 @@
+---
+title: How the text layer is drawn
+description: What pdf-textlayer writes into each page — render mode 3 text, run sizing, one appended content stream, and how existing page state is preserved.
+sidebar:
+  label: How it works
+  icon: cpu
+---
+
+pdf-textlayer edits a PDF in place: it never re-renders or re-compresses page images. For each page with OCR boxes it appends one content stream of invisible text and adds the overlay font to the page's resources.
+
+## Invisible text
+
+Text is written with PDF text render mode 3, which puts glyphs in the content stream without filling or stroking them. Search, copy and paste, screen readers, and indexers read the text; the visible page is unchanged. Every modern viewer and search indexer handles this mode.
+
+## Sizing each run
+
+For each box, the font size is chosen so the text's width matches the box along the text direction: the box width for horizontal text, the box height for vertical text. The size is capped at 1.2 times the box's other side, so a short word in a long box does not grow taller than its line.
+
+The run starts on the baseline at the left of the box. Horizontal text sits on `(x, y + height)`, the bottom-left corner.
+
+## Leaving the page as it was
+
+- Every box on a page goes into **one new content stream** appended after the page's own streams. The original streams are not rewritten.
+- When the page's own content leaves the graphics state changed (an unclosed `q`, or a matrix set outside any `q`/`Q` pair), the writer brackets it so the text layer still starts from the page's default coordinate system.
+- Resources that a page inherits or shares with other pages are copied before the overlay font is added, so other pages are not edited by accident.
+- Pages without boxes keep their content streams exactly as they were.
+
+## Rejected input
+
+Encrypted PDFs are rejected, including files that open without a password: saving such a file decrypted would silently drop its owner's restrictions. A file whose page tree cannot be found is rejected rather than saved back empty.

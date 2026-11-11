@@ -1,0 +1,50 @@
+---
+title: Benchmarks
+description: Timing, memory, file size, and output agreement of the Rust writer against the two earlier PyMuPDF-based versions on eleven synthetic documents.
+sidebar:
+  icon: gauge
+---
+
+Three versions of the writer on the same synthetic documents: **0.1** called PyMuPDF's `page.insert_text` once per box, **0.2** batched each page into one PyMuPDF commit, and **0.3** is the Rust writer. Each value is the median of 3 runs, each in a fresh process pinned to one CPU core (13th Gen Intel Core i7-1360P). Only the `write_textlayer` call is timed, through the Python package.
+
+## Results
+
+| Document profile | Pages | OCR boxes | 0.1 | 0.2 | 0.3 (Rust) | 0.3 vs 0.2 | 0.3 vs 0.1 | Peak RSS 0.1 / 0.2 / 0.3 |
+|---|--:|--:|--:|--:|--:|--:|--:|--:|
+| Scanned | 10 | 450 | 1.02 s | 108 ms | 11 ms | 9.6x | 91x | 55 / 54 / 21 MB |
+| Scanned | 100 | 4,500 | 10.76 s | 853 ms | 77 ms | 11.1x | 140x | 59 / 58 / 43 MB |
+| Scanned | 500 | 22,500 | 55.20 s | 4.32 s | 426 ms | 10.1x | 129x | 80 / 72 / 137 MB |
+| Scanned, vector-heavy page content | 10 | 450 | 1.16 s | 144 ms | 15 ms | 9.5x | 77x | 55 / 54 / 22 MB |
+| Scanned, vector-heavy page content | 50 | 2,250 | 5.67 s | 441 ms | 75 ms | 5.9x | 76x | 57 / 56 / 31 MB |
+| Scanned, vector-heavy page content | 200 | 9,000 | 22.84 s | 1.69 s | 269 ms | 6.3x | 85x | 64 / 61 / 68 MB |
+| Native text, scanned exhibit every 10th page | 100 | 900 | 2.33 s | 217 ms | 50 ms | 4.4x | 47x | 56 / 56 / 28 MB |
+| Native text, scanned exhibit every 10th page | 1000 | 9,000 | 24.97 s | 2.20 s | 441 ms | 5.0x | 57x | 79 / 75 / 111 MB |
+| Mixed native and scanned on every page | 20 | 900 | 2.55 s | 263 ms | 30 ms | 8.7x | 84x | 56 / 57 / 25 MB |
+| Mixed native and scanned on every page | 200 | 9,000 | 24.86 s | 2.70 s | 256 ms | 10.5x | 97x | 66 / 114 / 73 MB |
+| Scanned, rotated pages and rotated boxes | 50 | 1,650 | 4.04 s | 364 ms | 44 ms | 8.3x | 92x | 56 / 55 / 30 MB |
+| **Total** | | | **155.4 s** | **13.3 s** | **1.69 s** | **7.9x** | **92x** | |
+
+## What else was measured
+
+- **Output matches 0.2.** Read back with MuPDF, 938,450 words on 2,240 pages have the same text in the same order, and no word moved by more than 0.001 pt. Read back with PDFium, every page extracts to the same text. Version 0.1 differs from both by design: it had no native-word dedup and no rotation, and it wrote `€` as `·`.
+- **Native-text detection agrees with PyMuPDF.** On 118 real PDFs, 111,290 boxes placed on the words PyMuPDF extracts were all skipped, and 22,428 boxes placed where it finds no words were all drawn.
+- **Memory.** Lower on small and medium documents, because PyMuPDF is no longer loaded. Higher on the two largest: the Rust writer holds the whole file (137 MB peak for a 48 MB scan, where 0.2 used 72 MB).
+- **File size.** The text layer adds 2.4 MB across the dataset. Version 0.2 added 2.6 MB and 0.1 added 15.1 MB.
+- **Runs varied little.** The three runs of a document differed by at most 0.08 s for 0.3, 0.4 s for 0.2, and 2.8 s for 0.1.
+
+## Reproduce
+
+The scripts are in [`benchmarks/`](https://github.com/patelvivekdev/pdf-textlayer/tree/main/benchmarks). Check out the older versions next to the working tree and point the runner at them:
+
+```bash
+git worktree add ../v0.1 92662c2
+git worktree add ../v0.2 695696d
+(cd packages/python && uv sync)
+cd benchmarks
+uv run --project ../packages/python python generate.py data
+uv run --project ../packages/python python run.py --variant 0.1=../../v0.1/src --variant 0.2=../../v0.2/src --variant 0.3=
+uv run --project ../packages/python python report.py 0.1 0.2 0.3
+uv run --project ../packages/python python verify.py 0.2 0.3
+uvx --from pypdfium2 python verify_pdfium.py 0.2 0.3
+uv run --project ../packages/python python dedup_agreement.py ~/some/folder/of/pdfs
+```

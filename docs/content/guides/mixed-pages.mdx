@@ -1,0 +1,31 @@
+---
+title: Mixed documents
+description: How pdf-textlayer decides which pages get a text layer, and how it avoids indexing words a page already contains.
+sidebar:
+  icon: layers
+---
+
+Real documents mix native pages, scanned pages, and pages that are both: a typed contract with a scanned signature page, or a report with a photographed table. pdf-textlayer adds text only where the scan is, and leaves everything else as it was.
+
+## Which pages get a text layer
+
+For each page of the input PDF:
+
+1. If the OCR results have boxes for the page, the page gets an invisible layer with those boxes, minus any below `min_confidence`.
+2. If the OCR results omit the page, or list it with no boxes, the page is copied exactly as it was. Its content stream is not touched.
+
+For [LiteParse JSON](/guides/adapters), a page has OCR boxes when at least one of its `text_items` has `font_name` set to `"OCR"`. Native-text items keep their real font name and are skipped.
+
+## Words the page already has
+
+A page can hold native text and a scanned region at once, and some OCR engines also report the native words. Writing those again would make every native word appear twice in search results and copied text.
+
+So before drawing a box, pdf-textlayer reads the page's existing text and skips the box when it covers at least half of an existing word (or half of itself, whichever area is smaller). Text in FreeText annotations and form fields counts as existing text.
+
+:::note
+The check is geometric. Two words that sit side by side and barely touch are both kept. A box that covers half or more of a native word is treated as that word and skipped.
+:::
+
+## Running it twice
+
+A text layer written earlier counts as existing text too. Running pdf-textlayer again on its own output, with the same or new OCR results, does not stack a second layer on top of the first.
