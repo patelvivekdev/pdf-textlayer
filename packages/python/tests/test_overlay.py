@@ -1,4 +1,8 @@
-"""Rotation, native-word dedup, and single-commit overlay drawing."""
+"""Rotation, native-word dedup, and what the writer puts on each page.
+
+PyMuPDF builds the fixtures and reads the output back. It is a development
+dependency only: the package itself does not import it.
+"""
 
 from __future__ import annotations
 
@@ -7,16 +11,10 @@ from pathlib import Path
 import pymupdf
 import pytest
 
-from pdf_textlayer import Options, ParsedPage, TextBox, write_textlayer
-from pdf_textlayer.core import (
-    _OVERLAY_FONT_RESOURCE,
-    DEFAULT_FONT,
-    _covers_native_word,
-    _GlyphMetrics,
-    _native_word_rects,
-    _overlay_font_inserted_once,
-    _text_box_in_page_space,
-)
+from pdf_textlayer import Options, ParsedPage, PdfError, TextBox, write_textlayer
+
+# Resource name the writer gives its font on each page.
+OVERLAY_FONT_RESOURCE = "pdftextlayer"
 
 
 def _blank(path: Path, width: float = 200, height: float = 200) -> None:
@@ -76,25 +74,6 @@ def _write(src: Path, dest: Path, boxes: list[TextBox], **kwargs: object) -> Non
         dest,
         options=options if isinstance(options, Options) else None,
     )
-
-
-def test_display_box_on_rotated_page_maps_to_unrotated_space(tmp_path: Path) -> None:
-    src = tmp_path / "rotated.pdf"
-    doc = pymupdf.open()
-    try:
-        page = doc.new_page(width=792, height=612)
-        page.set_rotation(270)
-        doc.save(str(src))
-    finally:
-        doc.close()
-
-    doc = pymupdf.open(str(src))
-    try:
-        box = _text_box_in_page_space(doc[0], TextBox("Text", 138, 307, 389, 11))
-    finally:
-        doc.close()
-
-    assert box == TextBox("Text", 474, 138, 11, 389, rotation=270)
 
 
 @pytest.mark.parametrize("rotation", [0, 90, 180, 270])
@@ -234,7 +213,7 @@ def test_mixed_page_keeps_scanned_region(tmp_path: Path) -> None:
         assert len(page.search_for("native line 0")) == 1
         assert len(page.search_for(scanned)) == 1
         overlay_fonts = [
-            font for font in page.get_fonts() if font[4] == _OVERLAY_FONT_RESOURCE
+            font for font in page.get_fonts() if font[4] == OVERLAY_FONT_RESOURCE
         ]
         assert len(overlay_fonts) == 1
     finally:
@@ -298,74 +277,6 @@ def test_unsupported_glyphs_are_replaced_or_dropped(tmp_path: Path) -> None:
         assert "A" not in doc[0].get_text()
     finally:
         doc.close()
-
-
-def test_glyph_metrics_width_matches_font_text_length() -> None:
-    font = pymupdf.Font(DEFAULT_FONT)
-    metrics = _GlyphMetrics(font)
-    samples = [
-        "Hello World",
-        "AV To ffi",
-        "Contract \u00a74.2 \u2014 \u20ac100",
-        "?? x",
-        "",
-        "W" * 400,
-    ]
-    for text in samples:
-        encodable = metrics.encodable_text(text)
-        assert metrics.width_at_1pt(encodable) == font.text_length(
-            encodable, fontsize=1
-        )
-
-
-def test_glyph_metrics_replaces_unsupported_glyphs() -> None:
-    metrics = _GlyphMetrics(pymupdf.Font(DEFAULT_FONT))
-    encoded = metrics.encodable_text("Fee\u200b \u4e2d \u20ac5\x00")
-    assert encoded == "Fee? \u4e2d \u20ac5?"
-
-
-def test_overlay_font_lookup_embeds_once_and_restores_insert_font(
-    tmp_path: Path,
-) -> None:
-    src = tmp_path / "blank.pdf"
-    _blank(src)
-    doc = pymupdf.open(str(src))
-    try:
-        page = doc[0]
-        font = pymupdf.Font(DEFAULT_FONT)
-        with _overlay_font_inserted_once(page, font):
-            first = page.insert_font(fontname=_OVERLAY_FONT_RESOURCE)
-            second = page.insert_font(fontname=_OVERLAY_FONT_RESOURCE)
-            other = page.insert_font(fontname="helv")
-        assert first == second
-        assert other != first
-        assert "insert_font" not in vars(page)
-        names = [entry[4] for entry in page.get_fonts()]
-        assert names.count(_OVERLAY_FONT_RESOURCE) == 1
-    finally:
-        doc.close()
-
-
-@pytest.mark.parametrize(
-    ("word", "expected"),
-    [
-        ((10.0, 10.0, 50.0, 20.0), True),
-        ((30.0, 10.0, 70.0, 20.0), True),
-        ((35.0, 10.0, 75.0, 20.0), False),
-        ((100.0, 100.0, 140.0, 110.0), False),
-        ((10.0, 10.0, 10.0, 20.0), False),
-    ],
-)
-def test_half_coverage_of_the_smaller_box_counts_as_the_native_word(
-    word: tuple[float, float, float, float], expected: bool
-) -> None:
-    box = TextBox("word", 10.0, 10.0, 40.0, 10.0)
-    assert _covers_native_word(box, [word]) is expected
-
-
-def test_zero_area_box_does_not_count_as_a_native_word() -> None:
-    box = TextBox("word", 10.0, 10.0, 0.0, 10.0)
-    assert _covers_native_word(box, [(0.0, 0.0, 100.0, 100.0)]) is False
 
 
 def _scan_png(width: int = 120, height: int = 160) -> bytes:
@@ -435,8 +346,7 @@ def _synthetic_contract(path: Path) -> list[ParsedPage]:
                 [TextBox("Mixed native line 0", 60, 69, 120, 12)]
                 + [
                     TextBox(
-                        "Image region line "
-                        f"{line} \u00e9\u00df \u4e2d\u6587 \u2014 \u20ac9\u200b",
+                        f"Image region line {line} \u00e9\u00df \u2014 \u20ac9\u200b",
                         310,
                         310 + line * 14,
                         200,
@@ -476,9 +386,11 @@ def _synthetic_contract(path: Path) -> list[ParsedPage]:
 
 
 def _reference_write(src: Path, pages: list[ParsedPage], dest: Path) -> None:
-    """Per-box ``page.insert_text`` the batched writer has to match."""
-    font = pymupdf.Font(DEFAULT_FONT)
-    metrics = _GlyphMetrics(font)
+    """The 0.2 writer: one ``page.insert_text`` per box with PyMuPDF.
+
+    The Rust writer has to put the same words in the same places.
+    """
+    font = pymupdf.Font("helv")
     by_num = {page.page_number: page for page in pages}
     doc = pymupdf.open(str(src))
     try:
@@ -487,42 +399,35 @@ def _reference_write(src: Path, pages: list[ParsedPage], dest: Path) -> None:
             if parsed is None:
                 continue
             page = doc[idx]
-            native = _native_word_rects(page)
+            native = [tuple(word[:4]) for word in page.get_text("words")]
             for box in parsed.boxes:
                 if not box.text.strip():
                     continue
-                page_box = _text_box_in_page_space(page, box)
-                if _covers_native_word(page_box, native):
+                rect = pymupdf.Rect(box.x, box.y, box.x + box.width, box.y + box.height)
+                rect = rect * page.derotation_matrix
+                if _covers_any(rect, native):
                     continue
-                text = metrics.encodable_text(page_box.text)
-                rotation = round(page_box.rotation / 90) * 90 % 360
-                horizontal = rotation in (0, 180)
-                inline = page_box.width if horizontal else page_box.height
-                cross = page_box.height if horizontal else page_box.width
-                width_at_1pt = font.text_length(text, fontsize=1)
-                if width_at_1pt <= 0:
-                    continue
-                font_size = min(inline / width_at_1pt, max(cross * 1.2, 1.0))
-                rect = pymupdf.Rect(
-                    page_box.x,
-                    page_box.y,
-                    page_box.x + page_box.width,
-                    page_box.y + page_box.height,
+                text = "".join(
+                    char if font.glyph_advance(ord(char)) > 0 else "?"
+                    for char in box.text
                 )
+                rotation = round((box.rotation + page.rotation) / 90) * 90 % 360
+                horizontal = rotation in (0, 180)
+                inline = rect.width if horizontal else rect.height
+                cross = rect.height if horizontal else rect.width
+                width_at_1pt = font.text_length(text, fontsize=1)
+                font_size = min(inline / width_at_1pt, max(cross * 1.2, 1.0))
                 origin = {
                     0: (rect.x0, rect.y1),
                     90: (rect.x1, rect.y1),
                     180: (rect.x1, rect.y0),
                     270: (rect.x0, rect.y0),
                 }[rotation]
-                page.insert_font(
-                    fontname=_OVERLAY_FONT_RESOURCE,
-                    fontbuffer=font.buffer,
-                )
+                page.insert_font(fontname="reference", fontbuffer=font.buffer)
                 page.insert_text(
                     origin,
                     text,
-                    fontname=_OVERLAY_FONT_RESOURCE,
+                    fontname="reference",
                     fontsize=font_size,
                     render_mode=3,
                     color=(0, 0, 0),
@@ -533,30 +438,83 @@ def _reference_write(src: Path, pages: list[ParsedPage], dest: Path) -> None:
         doc.close()
 
 
-def _snapshot(path: Path) -> list[tuple]:
+def _covers_any(
+    rect: pymupdf.Rect, words: list[tuple[float, float, float, float]]
+) -> bool:
+    area = rect.width * rect.height
+    for x0, y0, x1, y1 in words:
+        overlap_width = min(rect.x1, x1) - max(rect.x0, x0)
+        overlap_height = min(rect.y1, y1) - max(rect.y0, y0)
+        word_area = (x1 - x0) * (y1 - y0)
+        if overlap_width <= 0 or overlap_height <= 0 or word_area <= 0:
+            continue
+        if overlap_width * overlap_height / min(area, word_area) >= 0.5:
+            return True
+    return False
+
+
+def _words(path: Path) -> list[list[tuple]]:
     doc = pymupdf.open(str(path))
     try:
-        return [
-            (
-                page.get_text("words"),
-                [image[0] for image in page.get_images(full=True)],
-                sorted(font[4] for font in page.get_fonts()),
-            )
-            for page in doc
-        ]
+        return [page.get_text("words") for page in doc]
     finally:
         doc.close()
 
 
-def test_batched_writer_matches_per_box_insertion(tmp_path: Path) -> None:
+def _images(path: Path) -> list[list[int]]:
+    doc = pymupdf.open(str(path))
+    try:
+        return [[image[0] for image in page.get_images(full=True)] for page in doc]
+    finally:
+        doc.close()
+
+
+def test_rust_writer_matches_the_pymupdf_writer(tmp_path: Path) -> None:
     src = tmp_path / "synthetic.pdf"
     pages = _synthetic_contract(src)
     _reference_write(src, pages, tmp_path / "reference.pdf")
-    write_textlayer(src, pages, tmp_path / "batched.pdf")
-    reference = _snapshot(tmp_path / "reference.pdf")
-    batched = _snapshot(tmp_path / "batched.pdf")
-    assert batched == reference
-    assert any(words for words, _, _ in batched)
+    write_textlayer(src, pages, tmp_path / "rust.pdf")
+
+    reference = _words(tmp_path / "reference.pdf")
+    written = _words(tmp_path / "rust.pdf")
+    assert any(reference)
+    assert len(written) == len(reference)
+
+    for page_words, reference_words in zip(written, reference, strict=True):
+        assert [word[4:] for word in page_words] == [
+            word[4:] for word in reference_words
+        ]
+        for word, reference_word in zip(page_words, reference_words, strict=True):
+            assert word[:4] == pytest.approx(reference_word[:4], abs=0.01)
+
+    assert _images(tmp_path / "rust.pdf") == _images(tmp_path / "reference.pdf")
+
+
+def test_text_in_any_script_is_kept(tmp_path: Path) -> None:
+    src = tmp_path / "blank.pdf"
+    dest = tmp_path / "out.pdf"
+    _blank(src, width=400)
+    text = "Fee \u4e2d\u6587 \u0416\u0443\u043a \u03b1\u03b2\u03b3 \u20ac5"
+    write_textlayer(src, [ParsedPage(1, [TextBox(text, 20, 40, 300, 12)])], dest)
+    doc = pymupdf.open(str(dest))
+    try:
+        assert text in doc[0].get_text()
+        assert len(doc[0].search_for("\u4e2d\u6587")) == 1
+    finally:
+        doc.close()
+
+
+def test_undrawable_characters_become_question_marks(tmp_path: Path) -> None:
+    src = tmp_path / "blank.pdf"
+    dest = tmp_path / "out.pdf"
+    _blank(src, width=400)
+    box = TextBox("Fee\u200b paid \U0001f600\x00", 20, 40, 200, 12)
+    write_textlayer(src, [ParsedPage(1, [box])], dest)
+    doc = pymupdf.open(str(dest))
+    try:
+        assert "Fee? paid ??" in doc[0].get_text()
+    finally:
+        doc.close()
 
 
 def test_overlay_font_is_embedded_once_per_page(tmp_path: Path) -> None:
@@ -567,12 +525,31 @@ def test_overlay_font_is_embedded_once_per_page(tmp_path: Path) -> None:
     doc = pymupdf.open(str(dest))
     try:
         counts = [
-            sum(1 for font in page.get_fonts() if font[4] == _OVERLAY_FONT_RESOURCE)
+            sum(1 for font in page.get_fonts() if font[4] == OVERLAY_FONT_RESOURCE)
             for page in doc
         ]
     finally:
         doc.close()
     assert counts == [1, 0, 1, 0, 1]
+
+
+def test_overlay_font_is_one_small_object_for_the_document(tmp_path: Path) -> None:
+    src = tmp_path / "synthetic.pdf"
+    pages = _synthetic_contract(src)
+    dest = tmp_path / "out.pdf"
+    write_textlayer(src, pages, dest)
+    doc = pymupdf.open(str(dest))
+    try:
+        xrefs = {
+            font[0]
+            for page in doc
+            for font in page.get_fonts()
+            if font[4] == OVERLAY_FONT_RESOURCE
+        }
+    finally:
+        doc.close()
+    assert len(xrefs) == 1
+    assert dest.stat().st_size - src.stat().st_size < 8_000
 
 
 def test_pages_without_new_text_keep_their_content_stream(tmp_path: Path) -> None:
@@ -617,13 +594,163 @@ def _annotated(path: Path) -> None:
         doc.close()
 
 
-def test_native_word_rects_match_extraction(tmp_path: Path) -> None:
+@pytest.mark.parametrize(
+    ("page_number", "box", "drawn"),
+    [
+        (1, TextBox("scanned words here", 20, 20, 150, 14), 1),
+        (2, TextBox("native words here", 20, 28, 95, 14), 0),
+        (3, TextBox("annotation words here", 22, 20, 110, 16), 0),
+        (4, TextBox("widget words here", 22, 26, 90, 16), 0),
+    ],
+)
+def test_annotation_and_form_field_text_counts_as_native(
+    tmp_path: Path, page_number: int, box: TextBox, drawn: int
+) -> None:
     src = tmp_path / "annotated.pdf"
     _annotated(src)
     doc = pymupdf.open(str(src))
     try:
-        for page in doc:
-            expected = [tuple(word[:4]) for word in page.get_text("words")]
-            assert _native_word_rects(page) == expected
+        words = doc[page_number - 1].get_text("words")
     finally:
         doc.close()
+    # The box sits on the words PyMuPDF reports for the page, when it has any.
+    if not drawn:
+        assert _covers_any(
+            pymupdf.Rect(box.x, box.y, box.x + box.width, box.y + box.height),
+            [tuple(word[:4]) for word in words],
+        )
+
+    stats = write_textlayer(src, [ParsedPage(page_number, [box])], tmp_path / "out.pdf")
+    assert stats["items_drawn"] == drawn
+
+
+def test_content_that_leaves_the_matrix_changed_does_not_move_the_text(
+    tmp_path: Path,
+) -> None:
+    src = tmp_path / "dirty.pdf"
+    dest = tmp_path / "out.pdf"
+    doc = pymupdf.open()
+    try:
+        page = doc.new_page(width=300, height=300)
+        # Scanner-style content: scale the matrix at the top level, open a
+        # save that is never closed, and restore once too often up front.
+        stream = doc.get_new_xref()
+        doc.update_object(stream, "<<>>")
+        doc.update_stream(
+            stream, b"Q 0.5 0 0 0.5 40 40 cm q 2 0 0 2 0 0 cm 0 0 10 10 re f"
+        )
+        page.set_contents(stream)
+        doc.save(str(src))
+    finally:
+        doc.close()
+
+    expected = pymupdf.Rect(40, 100, 140, 112)
+    write_textlayer(
+        src,
+        [ParsedPage(1, [TextBox("Unmoved overlay text", 40, 100, 100, 12)])],
+        dest,
+    )
+    _assert_search(dest, "Unmoved overlay text", expected)
+
+
+def test_inherited_and_shared_resources_are_not_edited_in_place(
+    tmp_path: Path,
+) -> None:
+    src = tmp_path / "shared.pdf"
+    dest = tmp_path / "out.pdf"
+    doc = pymupdf.open()
+    try:
+        doc.new_page(width=300, height=300)
+        doc.new_page(width=300, height=300)
+        first, second = doc[0], doc[1]
+        first.insert_text((20, 40), "first page")
+        # Point both pages at one resources object.
+        resources = doc.xref_get_key(first.xref, "Resources")
+        shared = doc.get_new_xref()
+        doc.update_object(shared, resources[1])
+        doc.xref_set_key(first.xref, "Resources", f"{shared} 0 R")
+        doc.xref_set_key(second.xref, "Resources", f"{shared} 0 R")
+        doc.save(str(src))
+    finally:
+        doc.close()
+
+    write_textlayer(src, [ParsedPage(1, [TextBox("Overlay", 20, 100, 60, 12)])], dest)
+    doc = pymupdf.open(str(dest))
+    try:
+        first_fonts = [font[4] for font in doc[0].get_fonts()]
+        second_fonts = [font[4] for font in doc[1].get_fonts()]
+    finally:
+        doc.close()
+    assert OVERLAY_FONT_RESOURCE in first_fonts
+    assert OVERLAY_FONT_RESOURCE not in second_fonts
+
+
+def test_writing_twice_does_not_stack_a_second_layer(tmp_path: Path) -> None:
+    src = tmp_path / "blank.pdf"
+    once = tmp_path / "once.pdf"
+    twice = tmp_path / "twice.pdf"
+    _blank(src)
+    pages = [ParsedPage(1, [TextBox("Only once", 40, 40, 80, 12)])]
+    assert write_textlayer(src, pages, once)["items_drawn"] == 1
+    assert write_textlayer(once, pages, twice)["items_drawn"] == 0
+
+
+def test_cropped_page_places_text_from_the_crop_box_corner(tmp_path: Path) -> None:
+    src = tmp_path / "cropped.pdf"
+    dest = tmp_path / "out.pdf"
+    doc = pymupdf.open()
+    try:
+        page = doc.new_page(width=400, height=400)
+        page.set_cropbox(pymupdf.Rect(50, 80, 350, 380))
+        doc.save(str(src))
+    finally:
+        doc.close()
+
+    expected = pymupdf.Rect(30, 40, 130, 52)
+    write_textlayer(
+        src,
+        [ParsedPage(1, [TextBox("Cropped page overlay", 30, 40, 100, 12)])],
+        dest,
+    )
+    _assert_search(dest, "Cropped page overlay", expected)
+
+
+def test_missing_input_raises_file_not_found(tmp_path: Path) -> None:
+    with pytest.raises(FileNotFoundError):
+        write_textlayer(tmp_path / "missing.pdf", [], tmp_path / "out.pdf")
+    assert not (tmp_path / "out.pdf").exists()
+
+
+def test_input_that_is_not_a_pdf_raises_pdf_error(tmp_path: Path) -> None:
+    src = tmp_path / "not.pdf"
+    src.write_bytes(b"this is not a pdf")
+    with pytest.raises(PdfError):
+        write_textlayer(src, [], tmp_path / "out.pdf")
+    assert not (tmp_path / "out.pdf").exists()
+
+
+@pytest.mark.parametrize("user_password", ["", "secret"])
+def test_encrypted_input_raises_pdf_error(tmp_path: Path, user_password: str) -> None:
+    src = tmp_path / "encrypted.pdf"
+    doc = pymupdf.open()
+    try:
+        doc.new_page()
+        doc.save(
+            str(src),
+            encryption=pymupdf.PDF_ENCRYPT_AES_256,
+            owner_pw="owner",
+            user_pw=user_password,
+        )
+    finally:
+        doc.close()
+
+    with pytest.raises(PdfError, match="encrypted"):
+        write_textlayer(src, [], tmp_path / "out.pdf")
+    assert not (tmp_path / "out.pdf").exists()
+
+
+def test_unknown_font_raises_value_error(tmp_path: Path) -> None:
+    src = tmp_path / "blank.pdf"
+    _blank(src)
+    with pytest.raises(ValueError, match="comic"):
+        write_textlayer(src, [], tmp_path / "out.pdf", options=Options(font="comic"))

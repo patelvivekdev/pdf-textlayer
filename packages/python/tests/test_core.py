@@ -8,14 +8,17 @@ import pymupdf
 import pytest
 
 from pdf_textlayer import (
-    LiteparseAdapter,
     Options,
     ParsedPage,
     TextBox,
+    add_textlayer,
+    load_pages,
+    main,
     make_searchable_pdf,
     write_textlayer,
 )
-from pdf_textlayer.adapters import available_adapters, get_adapter, register_adapter
+
+EXAMPLES = Path(__file__).resolve().parents[3] / "examples"
 
 
 def _build_native_pdf(path: Path, text: str = "Native page text") -> None:
@@ -271,7 +274,7 @@ def test_liteparse_adapter_skips_non_ocr_items() -> None:
             }
         ]
     }
-    pages = list(LiteparseAdapter().parse(data))
+    pages = load_pages(data)
     assert len(pages) == 1
     assert [b.text for b in pages[0].boxes] == ["ocr"]
 
@@ -312,7 +315,7 @@ def test_liteparse_adapter_reads_current_json_schema() -> None:
             }
         ],
     }
-    pages = list(LiteparseAdapter().parse(data))
+    pages = load_pages(data)
     assert len(pages) == 1
     assert pages[0].boxes == [TextBox("ocr", 5, 6, 7, 8, confidence=0.0, rotation=90.0)]
 
@@ -335,7 +338,7 @@ def test_liteparse_adapter_defaults_missing_rotation() -> None:
             }
         ]
     }
-    box = list(LiteparseAdapter().parse(data))[0].boxes[0]
+    box = load_pages(data)[0].boxes[0]
     assert box.rotation == 0.0
     assert box.confidence == 1.0
 
@@ -358,43 +361,25 @@ def test_liteparse_adapter_skips_pages_with_no_ocr() -> None:
             },
         ]
     }
-    assert list(LiteparseAdapter().parse(data)) == []
+    assert load_pages(data) == []
 
 
-def test_adapter_registry_roundtrip() -> None:
-    assert "liteparse" in available_adapters()
-    assert isinstance(get_adapter("liteparse"), LiteparseAdapter)
-    with pytest.raises(KeyError, match="Unknown adapter"):
-        get_adapter("does-not-exist")
+def test_load_pages_reads_a_json_file() -> None:
+    pages = load_pages(EXAMPLES / "parsed.json")
+    assert [page.page_number for page in pages] == [1]
+    assert len(pages[0].boxes) == 15
+    assert pages[0].boxes[0].text == "ACME"
 
 
-def test_custom_adapter_can_be_registered(tmp_path: Path) -> None:
-    """Register a custom adapter and drive it via make_searchable_pdf."""
-    pdf = tmp_path / "scan.pdf"
-    out = tmp_path / "out.pdf"
-    _build_native_pdf(pdf, text="")
+def test_unknown_adapter_and_invalid_json_raise_value_error(tmp_path: Path) -> None:
+    with pytest.raises(ValueError, match="unknown adapter"):
+        load_pages({"pages": []}, adapter="does-not-exist")
 
-    class FakeAdapter:
-        def parse(self, data):
-            for p in data["my_pages"]:
-                yield ParsedPage(
-                    page_number=p["n"],
-                    boxes=[TextBox(text=p["t"], x=50, y=100, width=60, height=14)],
-                )
-
-    register_adapter("fake", FakeAdapter())
-
-    stats = make_searchable_pdf(
-        pdf,
-        {"my_pages": [{"n": 1, "t": "CUSTOM"}]},
-        out,
-        adapter="fake",
-    )
-    assert stats["items_drawn"] == 1
-
-    doc = pymupdf.open(str(out))
-    assert "CUSTOM" in doc[0].get_text()
-    doc.close()
+    broken = tmp_path / "broken.json"
+    broken.write_text("{")
+    with pytest.raises(ValueError, match="not valid JSON"):
+        make_searchable_pdf(EXAMPLES / "scan.pdf", broken, tmp_path / "out.pdf")
+    assert not (tmp_path / "out.pdf").exists()
 
 
 # ---------------------------------------------------------------------------
@@ -434,3 +419,51 @@ def test_make_searchable_pdf_accepts_parsed_pages_list(tmp_path: Path) -> None:
     ]
     stats = make_searchable_pdf(pdf, pages, out, adapter="nonexistent-on-purpose")
     assert stats["items_drawn"] == 1
+
+
+def test_add_textlayer_matches_write_textlayer(tmp_path: Path) -> None:
+    pages = load_pages(EXAMPLES / "parsed.json")
+    written = tmp_path / "written.pdf"
+    write_stats = write_textlayer(EXAMPLES / "scan.pdf", pages, written)
+
+    output, stats = add_textlayer((EXAMPLES / "scan.pdf").read_bytes(), pages)
+
+    assert stats == write_stats == {"pages": 1, "ocr_pages": [1], "items_drawn": 15}
+    with pymupdf.open(stream=output) as in_memory, pymupdf.open(written) as on_disk:
+        assert in_memory[0].get_text("words") == on_disk[0].get_text("words")
+        assert "Lovelace" in in_memory[0].get_text()
+
+
+# ---------------------------------------------------------------------------
+# CLI
+# ---------------------------------------------------------------------------
+
+
+def test_cli_writes_the_pdf_and_reports_stats(
+    tmp_path: Path, capfd: pytest.CaptureFixture[str]
+) -> None:
+    out = tmp_path / "out.pdf"
+
+    code = main(
+        [str(EXAMPLES / "scan.pdf"), str(EXAMPLES / "parsed.json"), str(out)]
+        + ["--min-confidence", "0.5"]
+    )
+
+    stdout = capfd.readouterr().out
+    assert code == 0
+    assert "Text layer added on 1 page(s): 1" in stdout
+    assert "Items drawn: 15" in stdout
+    with pymupdf.open(out) as doc:
+        assert "Lovelace" in doc[0].get_text()
+
+
+def test_cli_reports_a_missing_input(
+    tmp_path: Path, capfd: pytest.CaptureFixture[str]
+) -> None:
+    code = main(
+        [str(tmp_path / "missing.pdf"), str(EXAMPLES / "parsed.json")]
+        + [str(tmp_path / "out.pdf")]
+    )
+
+    assert code == 1
+    assert "missing.pdf" in capfd.readouterr().err

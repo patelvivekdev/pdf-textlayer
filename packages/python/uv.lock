@@ -31,23 +31,21 @@ wheels = [
 
 [[package]]
 name = "pdf-textlayer"
-version = "0.2.0"
+version = "0.3.0"
 source = { editable = "." }
-dependencies = [
-    { name = "pymupdf" },
-]
 
 [package.dev-dependencies]
 dev = [
+    { name = "pymupdf" },
     { name = "pytest" },
     { name = "ruff" },
 ]
 
 [package.metadata]
-requires-dist = [{ name = "pymupdf", specifier = ">=1.27.2.3" }]
 
 [package.metadata.requires-dev]
 dev = [
+    { name = "pymupdf", specifier = ">=1.27.2.3" },
     { name = "pytest", specifier = ">=9.0.3" },
     { name = "ruff", specifier = ">=0.9.0" },
 ]

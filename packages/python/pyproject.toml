@@ -1,7 +1,7 @@
 [project]
 name = "pdf-textlayer"
-version = "0.2.0"
-description = "Add an invisible, searchable text layer to a PDF from OCR JSON (PyMuPDF)."
+version = "0.3.0"
+description = "Add an invisible, searchable text layer to a PDF from OCR JSON. Rust core, typed Python API."
 readme = "README.md"
 license = "MIT"
 license-files = ["LICENSE"]
@@ -9,7 +9,7 @@ authors = [
     { name = "Vivek Patel", email = "me@patelvivek.dev" }
 ]
 requires-python = ">=3.11"
-keywords = ["pdf", "ocr", "searchable", "textlayer", "pymupdf", "liteparse", "accessibility"]
+keywords = ["pdf", "ocr", "searchable", "textlayer", "rust", "liteparse", "accessibility"]
 classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
@@ -18,12 +18,13 @@ classifiers = [
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Programming Language :: Rust",
     "Topic :: Scientific/Engineering :: Image Processing",
     "Topic :: Text Processing",
+    "Typing :: Typed",
 ]
-dependencies = [
-    "pymupdf>=1.27.2.3",
-]
+dependencies = []
 
 [project.urls]
 Homepage = "https://github.com/patelvivekdev/pdf-textlayer"
@@ -31,14 +32,31 @@ Repository = "https://github.com/patelvivekdev/pdf-textlayer"
 Issues = "https://github.com/patelvivekdev/pdf-textlayer/issues"
 
 [project.scripts]
-pdf-textlayer = "pdf_textlayer:main"
+pdf-textlayer = "pdf_textlayer.cli:main"
 
 [build-system]
-requires = ["uv_build>=0.9.18,<0.10.0"]
-build-backend = "uv_build"
+requires = ["maturin>=1.9,<2.0"]
+build-backend = "maturin"
+
+[tool.maturin]
+manifest-path = "../../crates/pdf-textlayer-python/Cargo.toml"
+python-source = "."
+module-name = "pdf_textlayer._native"
+
+[tool.uv]
+# Rebuild the extension when the Rust sources change.
+cache-keys = [
+    { file = "pyproject.toml" },
+    { file = "../../Cargo.toml" },
+    { file = "../../Cargo.lock" },
+    { file = "../../crates/**/Cargo.toml" },
+    { file = "../../crates/**/*.rs" },
+]
 
 [dependency-groups]
 dev = [
+    # Tests build fixtures with PyMuPDF and read the output back with it.
+    "pymupdf>=1.27.2.3",
     "pytest>=9.0.3",
     "ruff>=0.9.0",
 ]
@@ -46,7 +64,6 @@ dev = [
 [tool.ruff]
 target-version = "py311"
 line-length = 88
-src = ["src"]
 
 [tool.ruff.format]
 quote-style = "double"
