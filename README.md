@@ -227,7 +227,7 @@ To deploy on Vercel, import the repository and set the project's **Root Director
 
 ### Releases
 
-Releases are manual GitHub workflows (`release-crates.yml`, `release-python.yml`, `release-node.yml`), each checking that the version you enter matches the package. PyPI and npm use trusted publishing, so no PyPI or npm token is stored in GitHub. npm releases are staged: they go live only after a maintainer approves them with 2FA on npmjs.com.
+The crate, the Python package, and the Node.js package share one version. [release-please](https://github.com/googleapis/release-please) keeps a release PR open that bumps it everywhere and updates `CHANGELOG.md` from [Conventional Commit](https://www.conventionalcommits.org) messages. Merging that PR tags `vX.Y.Z`, creates the GitHub release, and starts `release-crates.yml`, `release-python.yml`, and `release-node.yml`, whose publish jobs each wait for a maintainer's approval. PyPI and npm use trusted publishing, so no PyPI or npm token is stored in GitHub. npm releases are staged: they go live only after a maintainer approves them with 2FA on npmjs.com.
 
 ## Contributing
 

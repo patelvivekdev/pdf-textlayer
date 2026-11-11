@@ -1,0 +1,23 @@
+{
+  "$schema": "https://raw.githubusercontent.com/googleapis/release-please/main/schemas/config.json",
+  "release-type": "simple",
+  "bootstrap-sha": "8825b711fd820216b1fdefed491640f0100a41a6",
+  "include-component-in-tag": false,
+  "bump-minor-pre-major": true,
+  "pull-request-title-pattern": "chore: release ${version}",
+  "packages": {
+    ".": {
+      "extra-files": [
+        { "type": "toml", "path": "Cargo.toml", "jsonpath": "$.workspace.package.version" },
+        { "type": "toml", "path": "Cargo.lock", "jsonpath": "$.package[?(@.name.value==='pdf-textlayer')].version" },
+        { "type": "toml", "path": "Cargo.lock", "jsonpath": "$.package[?(@.name.value==='pdf-textlayer-python')].version" },
+        { "type": "toml", "path": "Cargo.lock", "jsonpath": "$.package[?(@.name.value==='pdf-textlayer-napi')].version" },
+        { "type": "toml", "path": "packages/python/pyproject.toml", "jsonpath": "$.project.version" },
+        { "type": "toml", "path": "packages/python/uv.lock", "jsonpath": "$.package[?(@.name.value==='pdf-textlayer')].version" },
+        { "type": "json", "path": "packages/node/package.json", "jsonpath": "$.version" },
+        { "type": "json", "path": "packages/node/package-lock.json", "jsonpath": "$.version" },
+        { "type": "json", "path": "packages/node/package-lock.json", "jsonpath": "$.packages[''].version" }
+      ]
+    }
+  }
+}
